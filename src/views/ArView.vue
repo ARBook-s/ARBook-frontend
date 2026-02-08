@@ -2,6 +2,7 @@
   <div v-if="!started" class="start">
     <h2>AR-книга</h2>
     <button @click="start">Запустить</button>
+    <router-link to="/admin" class="start__admin">Админ</router-link>
   </div>
 
   <div ref="container" class="ar" :class="{ 'ar--active': started }"></div>
@@ -108,5 +109,16 @@ const start = async () => {
   place-content: center;
   background: #000;
   color: white;
+}
+.start__admin {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  color: #888;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+.start__admin:hover {
+  color: #fff;
 }
 </style>
