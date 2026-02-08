@@ -1,6 +1,7 @@
 import path from 'path'
 import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
+// import basicSsl from '@vitejs/plugin-basic-ssl'
 import commonjs from 'vite-plugin-commonjs'
 import vue from '@vitejs/plugin-vue'
 
@@ -20,6 +21,7 @@ function htmlRawPlugin() {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
+    // basicSsl(),
     commonjs({
       filter(id) {
         if (!id.includes('node_modules') || id.includes('.vue')) return false
@@ -39,6 +41,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // HTTPS включается плагином basicSsl — нужен для камеры на телефоне (getUserMedia)
     proxy: {
       '/api': {
         target: 'http://localhost:5056',
