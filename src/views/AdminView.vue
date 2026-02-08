@@ -1,66 +1,69 @@
 <template>
-  <div class="admin">
-    <header class="admin__header">
-      <h1>Админ-панель</h1>
-      <router-link to="/" class="admin__link">AR-книга</router-link>
-      <button class="admin__logout" @click="handleLogout">Выйти</button>
-    </header>
-    <main class="admin__main">
-      <p>Добро пожаловать в админ-раздел.</p>
-    </main>
-  </div>
+  <a-layout class="admin-layout">
+    <a-layout-header class="admin-header">
+      <span class="admin-header__title">ARBook — Админ</span>
+      <div class="admin-header__actions">
+        <a-button type="link" @click="goToAr">AR-книга</a-button>
+        <a-button type="primary" ghost @click="handleLogout">
+          Выйти
+        </a-button>
+      </div>
+    </a-layout-header>
+    <a-layout-content class="admin-content">
+      <a-card title="Админ-панель">
+        <h4>Добро пожаловать</h4>
+        <p>Управление AR-маркерами и настройки приложения.</p>
+      </a-card>
+    </a-layout-content>
+  </a-layout>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/store/auth'
+import { useAuthStore } from '@/api/store/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
+const goToAr = () => router.push('/')
 const handleLogout = () => {
   authStore.logout()
-  router.push('/login')
+  router.replace('/login')
 }
 </script>
 
 <style scoped>
-.admin {
+.admin-layout {
   min-height: 100vh;
-  background: #1a1a2e;
-  color: #eee;
 }
-.admin__header {
+.admin-header {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  padding: 1rem 2rem;
-  border-bottom: 1px solid #333;
+  justify-content: space-between;
+  background: #001529;
+  padding: 0 24px;
 }
-.admin__header h1 {
-  margin: 0;
-  font-size: 1.25rem;
+.admin-header__title {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
 }
-.admin__link {
-  color: #646cff;
-  text-decoration: none;
+.admin-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.admin__link:hover {
-  text-decoration: underline;
+.admin-header__actions :deep(.ant-btn-link) {
+  color: rgba(255, 255, 255, 0.85);
 }
-.admin__logout {
-  margin-left: auto;
-  padding: 0.5rem 1rem;
-  border: 1px solid #555;
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
+.admin-header__actions :deep(.ant-btn-link:hover) {
+  color: #fff;
 }
-.admin__logout:hover {
-  background: #333;
+.admin-content {
+  padding: 24px;
+  background: #f0f2f5;
 }
-.admin__main {
-  padding: 2rem;
+.admin-content :deep(.ant-card) {
+  max-width: 800px;
 }
 </style>

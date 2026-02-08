@@ -11,6 +11,7 @@ export const axiosInstance = axios.create({
     'Content-Type': 'application/json',
     Accept: 'application/json',
   },
+  withCredentials: true,
 })
 
 // ——— Request interceptor ———
@@ -41,6 +42,16 @@ axiosInstance.interceptors.response.use(
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem('token')
       }
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+        const redirect = encodeURIComponent(window.location.pathname)
+        window.location.replace(`/login?redirect=${redirect}`)
+        return Promise.reject(new Error('Сессия истекла'))
+      }
+    }
+
+    if (status === 403 && typeof window !== 'undefined') {
+      window.location.replace('/403')
+      return Promise.reject(new Error('Доступ запрещён'))
     }
 
     const err = new Error(message) as Error & {
