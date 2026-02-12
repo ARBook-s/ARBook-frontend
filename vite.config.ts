@@ -1,7 +1,7 @@
 import path from 'path'
 import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
-// import basicSsl from '@vitejs/plugin-basic-ssl'
+import basicSsl from '@vitejs/plugin-basic-ssl'
 import commonjs from 'vite-plugin-commonjs'
 import vue from '@vitejs/plugin-vue'
 
@@ -21,7 +21,7 @@ function htmlRawPlugin() {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    // basicSsl(),
+    basicSsl(),
     commonjs({
       filter(id) {
         if (!id.includes('node_modules') || id.includes('.vue')) return false
@@ -41,18 +41,23 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: true, // слушать на 0.0.0.0 — доступ с телефона в той же Wi‑Fi сети
     // HTTPS включается плагином basicSsl — нужен для камеры на телефоне (getUserMedia)
     proxy: {
       '/api': {
-        target: 'http://localhost:5056',
+        target: 'http://localhost:8080',
         changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://localhost:5056',
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/arbook': {
+        target: 'http://localhost:9000',
         changeOrigin: true,
       },
       '/swagger': {
-        target: 'http://localhost:5056',
+        target: 'http://localhost:8080',
         changeOrigin: true,
       },
     },

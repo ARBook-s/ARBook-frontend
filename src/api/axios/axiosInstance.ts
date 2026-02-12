@@ -1,8 +1,23 @@
 import axios, { type AxiosError } from 'axios'
 
+/** baseURL для axios. На телефоне localhost недоступен — используем origin (proxy). */
+function getApiBaseUrl(): string {
+  const env = import.meta.env.VITE_API_BASE_URL
+  const base = env != null && String(env).trim() !== '' ? String(env).trim().replace(/\/$/, '') : ''
+  if (!base) return ''
+  // На телефоне (origin не localhost) localhost недоступен — идём через proxy
+  if (typeof window !== 'undefined') {
+    const isLocalhost = (url: string) =>
+      url.includes('localhost') || url.includes('127.0.0.1')
+    if (isLocalhost(base) && !isLocalhost(window.location.origin)) {
+      return ''
+    }
+  }
+  return base
+}
 
 export const axiosInstance = axios.create({
-  baseURL:  import.meta.env.VITE_API_BASE_URL,
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',

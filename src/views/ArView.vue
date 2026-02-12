@@ -39,6 +39,9 @@
     </div>
   </div>
   <div ref="container" class="ar" :class="{ 'ar--active': started }"></div>
+  <div v-if="started && showSoundHint" class="sound-hint" @click="hideSoundHint">
+    Нажмите для включения звука
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -56,6 +59,8 @@ const started = ref(false)
 const loading = ref(false)
 const error = ref('')
 const cameraOnlyMode = ref(false)
+const showSoundHint = ref(true)
+const hideSoundHint = () => { showSoundHint.value = false }
 
 let mindar: MindARThree
 let mixer: THREE.AnimationMixer
@@ -142,11 +147,18 @@ const start = async () => {
       uiLoading: 'no',
       uiScanning: 'no',
       uiError: 'no',
+      filterMinCF: 0.0001,
+      filterBeta: 500,
     })
 
     const scene = (mindar as unknown as { scene: THREE.Scene }).scene
     const camera = (mindar as unknown as { camera: THREE.PerspectiveCamera }).camera
     const renderer = (mindar as unknown as { renderer: THREE.WebGLRenderer }).renderer
+
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    if (isMobile) {
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    }
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1))
 
@@ -154,39 +166,113 @@ const start = async () => {
     const gltf = await loader.loadAsync(glbUrl)
 
     const model = gltf.scene as THREE.Group
-    model.scale.setScalar(marker.scale)
+    const baseScale = 0.3
+    model.scale.setScalar(baseScale * marker.scale)
+
+    const modelWrapper = new THREE.Group()
+    modelWrapper.add(model)
 
     const anchor = mindar.addAnchor(0)
-    anchor.group.add(model)
+    anchor.group.add(modelWrapper)
+
+    let manualRotationY = 0
+    let lastTouchX = 0
+    let targetVisible = false
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) lastTouchX = e.touches[0]!.clientX
+    }
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1 && targetVisible) {
+        const t = e.touches[0]!
+        const dx = t.clientX - lastTouchX
+        manualRotationY += dx * 0.01
+        lastTouchX = t.clientX
+      }
+    }
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) lastTouchX = e.clientX
+    }
+    const handleMouseMove = (e: MouseEvent) => {
+      if (e.buttons === 1 && targetVisible) {
+        const dx = e.clientX - lastTouchX
+        manualRotationY += dx * 0.01
+        lastTouchX = e.clientX
+      }
+    }
+    const containerEl = container.value
+    if (containerEl) {
+      containerEl.addEventListener('touchstart', handleTouchStart, { passive: true })
+      containerEl.addEventListener('touchmove', handleTouchMove, { passive: true })
+      containerEl.addEventListener('mousedown', handleMouseDown)
+      containerEl.addEventListener('mousemove', handleMouseMove)
+    }
 
     mixer = new THREE.AnimationMixer(model)
     for (const clip of gltf.animations) {
       mixer.clipAction(clip as THREE.AnimationClip).play()
     }
 
-    const listener = new THREE.AudioListener()
-    camera.add(listener)
-    const sound = new THREE.Audio(listener)
+    const audioEl = new Audio()
+    audioEl.src = audioUrl
+    audioEl.loop = true
+    audioEl.volume = 0.7
+    audioEl.preload = 'auto'
+    audioEl.setAttribute('playsinline', '')
+    audioEl.setAttribute('webkit-playsinline', '')
+    audioEl.style.display = 'none'
+    document.body.appendChild(audioEl)
 
-    new THREE.AudioLoader().load(audioUrl, (buffer) => {
-      sound.setBuffer(buffer)
-      sound.setLoop(true)
-      sound.setVolume(0.7)
+    audioEl.addEventListener('canplaythrough', () => {
+      console.log('[AR Audio] HTML5 Audio готов:', audioUrl)
+    })
+    audioEl.addEventListener('error', (e) => {
+      console.error('[AR Audio] HTML5 Audio ошибка:', e)
     })
 
+    const unlockAudio = () => {
+      showSoundHint.value = false
+      document.removeEventListener('click', unlockAudio)
+      document.removeEventListener('touchend', unlockAudio)
+      if (audioEl.paused) {
+        audioEl.play()
+          .then(() => {
+            audioEl.pause()
+            audioEl.currentTime = 0
+          })
+          .catch((e) => console.error('[AR Audio] unlock play ошибка:', e))
+      }
+    }
+    document.addEventListener('click', unlockAudio)
+    document.addEventListener('touchend', unlockAudio)
+
+    let frameSkip = 0
     const anchorObj = anchor as unknown as { onTargetFound: () => void; onTargetLost: () => void }
     anchorObj.onTargetFound = () => {
-      sound.play()
+      targetVisible = true
+      audioEl.currentTime = 0
+      audioEl.play().catch((e) => console.error('[AR Audio] play ошибка:', e))
     }
     anchorObj.onTargetLost = () => {
-      sound.pause()
+      targetVisible = false
+      audioEl.pause()
     }
 
     await mindar.start()
 
-    renderer.setAnimationLoop(() => {
-      mixer.update(0.016)
-      renderer.render(scene, camera)
+    let lastTime = performance.now()
+    renderer.setAnimationLoop((time) => {
+      const delta = (time - lastTime) / 1000
+      lastTime = time
+      modelWrapper.rotation.y = manualRotationY
+      if (targetVisible) {
+        mixer.update(delta)
+        renderer.render(scene, camera)
+      } else {
+        frameSkip++
+        if (frameSkip % 2 === 0) {
+          renderer.render(scene, camera)
+        }
+      }
     })
   } catch (e) {
     console.error('AR start error:', e)
@@ -424,5 +510,20 @@ const start = async () => {
 .camera-only-overlay__btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(13, 92, 99, 0.4);
+}
+
+.sound-hint {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.6rem 1.2rem;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 0.85rem;
+  border-radius: 2rem;
+  z-index: 10;
+  pointer-events: auto;
+  cursor: pointer;
 }
 </style>
