@@ -7,11 +7,11 @@
         @submit.prevent="handleSubmit"
       >
         <a-form-item v-if="error" :validate-status="'error'" :help="error" />
-        <a-form-item label="Email" name="email" :rules="[{ required: true, message: 'Введите email' }]">
+        <a-form-item label="Имя пользователя" name="username" :rules="[{ required: true, message: 'Введите имя пользователя' }]">
           <a-input
-            v-model:value="form.email"
-            type="email"
-            placeholder="email@example.com"
+            v-model:value="form.username"
+            type="text"
+            placeholder="username"
             size="large"
           />
         </a-form-item>
@@ -46,7 +46,7 @@ import { useAuthStore } from '@/api/store/auth'
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
-const form = reactive({ email: '', password: '' })
+const form = reactive({ username: '', password: '' })
 const error = ref('')
 const loading = ref(false)
 
@@ -54,7 +54,7 @@ const handleSubmit = async () => {
   error.value = ''
   loading.value = true
   try {
-    await authStore.login({ email: form.email, password: form.password })
+    await authStore.login({ username: form.username, password: form.password })
     const r = route.query.redirect
     const path =
       typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : '/admin'

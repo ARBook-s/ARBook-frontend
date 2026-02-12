@@ -20,24 +20,28 @@ Vue 3 + TypeScript + Vite. Работает с бэкендом ARBook (API ма
 
 ## API-клиент
 
-В коде используйте `src/api/client.ts`:
+В коде используйте `src/api/markers.ts` или `src/api/services/markersService.ts`:
 
 ```ts
-import { markersApi, type MarkerDto } from '@/api/client'
+import { markersApi, getMarkers, getAssetUrl } from '@/api/markers'
+import type { Marker } from '@/api/types'
 
 // Список маркеров
-const { data } = await markersApi.getAll()
+const markers = await markersApi.getAll()
 
 // Один маркер
-const { data } = await markersApi.getById(1)
+const marker = await markersApi.getById(1)
 
 // Создать маркер (FormData с полями name, mind, glb, audio)
 const formData = new FormData()
-formData.set('name', 'Название')
-formData.set('mind', mindFile)
-formData.set('glb', glbFile)
-formData.set('audio', audioFile)
-const { data } = await markersApi.create(formData)
+formData.append('name', 'Название')
+formData.append('mind', mindFile)
+formData.append('glb', glbFile)
+formData.append('audio', audioFile)
+const marker = await markersApi.create(formData)
+
+// URL к ассету для AR
+const glbUrl = getAssetUrl(marker.glbModelPath)
 ```
 
 Переменная окружения `VITE_API_BASE_URL`: если пустая, в dev запросы идут на тот же origin (через proxy). Для продакшена задайте полный URL бэкенда.

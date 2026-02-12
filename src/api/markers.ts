@@ -1,4 +1,4 @@
-import { axiosInstance } from './axios/axiosInstance'
+import MarkersService from './services/markersService'
 import type { Marker } from '@/api/types'
 
 /** Базовый URL бэкенда. В dev с proxy — тот же origin. */
@@ -21,21 +21,15 @@ export function getAssetUrl(path: string): string {
 }
 
 export const markersApi = {
-  getAll: () => axiosInstance.get<Marker[]>('/api/markers'),
-  getById: (id: number) => axiosInstance.get<Marker>(`/api/markers/${id}`),
-  create: (formData: FormData) => axiosInstance.post<Marker>('/api/markers', formData),
+  getAll: () => MarkersService.getAllMarkers(),
+  getById: (id: number) => MarkersService.getMarkerById(id),
+  create: (formData: FormData) => MarkersService.createMarker(formData),
 }
 
 export async function getMarkers(): Promise<Marker[]> {
-  const { data } = await markersApi.getAll()
-  return data
+  return MarkersService.getAllMarkers()
 }
 
 export async function getMarkerById(id: number): Promise<Marker | null> {
-  try {
-    const { data } = await markersApi.getById(id)
-    return data
-  } catch {
-    return null
-  }
+  return MarkersService.getMarkerById(id)
 }

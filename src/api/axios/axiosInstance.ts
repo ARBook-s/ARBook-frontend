@@ -1,12 +1,8 @@
 import axios, { type AxiosError } from 'axios'
 
-const baseURL =
-  import.meta.env.VITE_API_BASE_URL != null && String(import.meta.env.VITE_API_BASE_URL).trim() !== ''
-    ? String(import.meta.env.VITE_API_BASE_URL).trim().replace(/\/$/, '')
-    : ''
 
 export const axiosInstance = axios.create({
-  baseURL,
+  baseURL:  import.meta.env.VITE_API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
