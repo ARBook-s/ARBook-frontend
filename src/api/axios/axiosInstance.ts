@@ -1,4 +1,5 @@
 import axios, { type AxiosError } from 'axios'
+import { SESSION_FLAG } from '../authConstants'
 
 /** baseURL для axios. На телефоне localhost недоступен — используем origin (proxy). */
 function getApiBaseUrl(): string {
@@ -29,7 +30,8 @@ export const axiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null
-    if (token) {
+    // SESSION_FLAG = auth через cookies, не отправляем Bearer
+    if (token && token !== SESSION_FLAG) {
       config.headers.Authorization = `Bearer ${token}`
     }
     if (config.data instanceof FormData) {

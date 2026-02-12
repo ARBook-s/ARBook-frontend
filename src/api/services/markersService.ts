@@ -44,11 +44,37 @@ class MarkersService {
    */
   static async createMarker(formData: FormData): Promise<Marker> {
     try {
-        const response = await axiosInstance.post<Marker>('/api/markers', formData)
-        return response.data
+      const response = await axiosInstance.post<Marker>('/api/markers', formData)
+      return response.data
     } catch (error: unknown) {
       const data = (error as { response?: { data?: unknown } })?.response?.data
       throw new Error(String(data ?? 'Ошибка при создании маркера'))
+    }
+  }
+
+  /**
+   * Обновляет маркер. PATCH /api/markers/:id
+   * Отправка multipart/form-data. Можно передать только изменённые поля.
+   */
+  static async updateMarker(id: number, formData: FormData): Promise<Marker> {
+    try {
+      const response = await axiosInstance.patch<Marker>(`/api/markers/${id}`, formData)
+      return response.data
+    } catch (error: unknown) {
+      const data = (error as { response?: { data?: unknown } })?.response?.data
+      throw new Error(String(data ?? 'Ошибка при обновлении маркера'))
+    }
+  }
+
+  /**
+   * Удаляет маркер. DELETE /api/markers/:id
+   */
+  static async deleteMarker(id: number): Promise<void> {
+    try {
+      await axiosInstance.delete(`/api/markers/${id}`)
+    } catch (error: unknown) {
+      const data = (error as { response?: { data?: unknown } })?.response?.data
+      throw new Error(String(data ?? 'Ошибка при удалении маркера'))
     }
   }
 }
