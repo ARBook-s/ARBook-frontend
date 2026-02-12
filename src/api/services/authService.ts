@@ -1,31 +1,56 @@
 import axiosInstance from '../axios/axiosInstance'
 
-const TOKEN_KEY = 'token'
-
 export interface LoginCredentials {
-  email: string
+  username: string
   password: string
 }
 
-export interface LoginResponse {
-  token: string
+function getToken(): string | null {
+  if (typeof localStorage === 'undefined') return null
+  return localStorage.getItem('token')
 }
 
 export function isAuthenticated(): boolean {
-  return typeof localStorage !== 'undefined' && !!localStorage.getItem(TOKEN_KEY)
-}
-
-export function getToken(): string | null {
-  return typeof localStorage !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+  return !!getToken()
 }
 
 export async function login(credentials: LoginCredentials): Promise<void> {
-  const { data } = await axiosInstance.post<LoginResponse>('/api/auth/login', credentials)
-  if (data.token) {
-    localStorage.setItem(TOKEN_KEY, data.token)
+  const { username, password } = credentials
+  try {
+    const response = await axiosInstance.post<{ token?: string } | string>('/api/auth/login', {
+      username,
+      password,
+    })
+    const data = response.data
+    const token = typeof data === 'string' ? data : data?.token
+    if (token && typeof localStorage !== 'undefined') {
+      localStorage.setItem('token', token)
+    }
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string; error?: string } }; message?: string }
+    const message =
+      err.response?.data?.message ??
+      err.response?.data?.error ??
+      err.message ??
+      'Ошибка при авторизации'
+    throw new Error(message)
   }
 }
 
-export function logout(): void {
-  localStorage.removeItem(TOKEN_KEY)
+export async function logout(): Promise<void> {
+  try {
+    await axiosInstance.post('/api/auth/logout')
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string; error?: string } }; message?: string }
+    const message =
+      err.response?.data?.message ??
+      err.response?.data?.error ??
+      err.message ??
+      'Ошибка при выходе'
+    throw new Error(message)
+  } finally {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('token')
+    }
+  }
 }

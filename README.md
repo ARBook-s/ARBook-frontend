@@ -16,31 +16,45 @@ Vue 3 + TypeScript + Vite. Работает с бэкендом ARBook (API ма
    npm run dev
    ```
 
-4. Откройте в браузере **http://localhost:5173**. Запросы к `/api/*` и `/uploads/*` будут проксироваться на бэкенд.
+4. Откройте в браузере **http://localhost:5173** (или **https://localhost:5173**). Запросы к `/api/*`, `/uploads/*`, `/arbook/*` будут проксироваться на бэкенд и MinIO.
+
+### Запуск на телефоне
+
+1. Убедитесь, что компьютер и телефон в одной Wi‑Fi сети.
+2. Запустите `npm run dev` — в консоли появится сетевой адрес вида `https://192.168.x.x:5173`.
+3. Откройте этот адрес в браузере на телефоне.
+4. При первом заходе браузер может предупредить о самоподписанном сертификате — нажмите «Дополнительно» → «Перейти на сайт».
+5. **Ошибка при получении маркеров или загрузке файлов:** в `.env` оставьте `VITE_API_BASE_URL` и `VITE_UPLOADS_BASE_URL` пустыми — запросы пойдут через proxy. Если они указывают на `localhost`, на телефоне это не работает (телефон не видит ваш компьютер).
 
 ## API-клиент
 
-В коде используйте `src/api/client.ts`:
+В коде используйте `src/api/markers.ts` или `src/api/services/markersService.ts`:
 
 ```ts
-import { markersApi, type MarkerDto } from '@/api/client'
+import { markersApi, getMarkers, getAssetUrl } from '@/api/markers'
+import type { Marker } from '@/api/types'
 
 // Список маркеров
-const { data } = await markersApi.getAll()
+const markers = await markersApi.getAll()
 
 // Один маркер
-const { data } = await markersApi.getById(1)
+const marker = await markersApi.getById(1)
 
 // Создать маркер (FormData с полями name, mind, glb, audio)
 const formData = new FormData()
-formData.set('name', 'Название')
-formData.set('mind', mindFile)
-formData.set('glb', glbFile)
-formData.set('audio', audioFile)
-const { data } = await markersApi.create(formData)
+formData.append('name', 'Название')
+formData.append('mind', mindFile)
+formData.append('glb', glbFile)
+formData.append('audio', audioFile)
+const marker = await markersApi.create(formData)
+
+// URL к ассету для AR
+const glbUrl = getAssetUrl(marker.glbModelPath)
 ```
 
-Переменная окружения `VITE_API_BASE_URL`: если пустая, в dev запросы идут на тот же origin (через proxy). Для продакшена задайте полный URL бэкенда.
+Переменные окружения:
+- `VITE_API_BASE_URL` — если пустая, в dev запросы идут на тот же origin (через proxy). Для продакшена задайте полный URL бэкенда.
+- `VITE_UPLOADS_BASE_URL` — URL хранилища файлов (MinIO/S3 path-style), например `http://localhost:9000` для `http://localhost:9000/arbook/uploads/...`. Если пусто — используется `VITE_API_BASE_URL`.
 
 ---
 
