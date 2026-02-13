@@ -40,11 +40,10 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/api/store/auth'
 
 const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
 const form = reactive({ username: '', password: '' })
 const error = ref('')
@@ -55,10 +54,7 @@ const handleSubmit = async () => {
   loading.value = true
   try {
     await authStore.login({ username: form.username, password: form.password })
-    const r = route.query.redirect
-    const path =
-      typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : '/admin'
-    router.replace(path)
+    await router.push({name: 'Admin'})
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Ошибка входа'
   } finally {

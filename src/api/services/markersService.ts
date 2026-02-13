@@ -8,7 +8,9 @@ class MarkersService {
    */
   static async getAllMarkers(): Promise<Marker[]> {
     try {
-      const response = await axiosInstance.get<Marker[]>('/api/markers')
+      const response = await axiosInstance.get<Marker[]>('/api/markers', {
+        params: { _t: Date.now() },
+      })
       return response.data
     } catch (error: unknown) {
       const data = (error as { response?: { data?: unknown } })?.response?.data

@@ -88,7 +88,7 @@
         </a-form-item>
 
         <template v-if="!editingMarker">
-          <a-form-item label="Файл разметки (.mind)" name="mind" required>
+          <a-form-item label="Файл разметки (.mind)" name="mindFileList" :rules="formRules.mindFileList">
             <a-upload
               v-model:file-list="formState.mindFileList"
               :max-count="1"
@@ -98,7 +98,7 @@
               <a-button>Выбрать файл</a-button>
             </a-upload>
           </a-form-item>
-          <a-form-item label="3D-модель (GLB)" name="glb" required>
+          <a-form-item label="3D-модель (GLB)" name="glbFileList" :rules="formRules.glbFileList">
             <a-upload
               v-model:file-list="formState.glbFileList"
               :max-count="1"
@@ -108,7 +108,7 @@
               <a-button>Выбрать файл</a-button>
             </a-upload>
           </a-form-item>
-          <a-form-item label="Аудио" name="audio" required>
+          <a-form-item label="Аудио" name="audioFileList" :rules="formRules.audioFileList">
             <a-upload
               v-model:file-list="formState.audioFileList"
               :max-count="1"
@@ -122,7 +122,7 @@
 
         <template v-else>
           <a-divider>Заменить файлы (оставьте пустым, чтобы не менять)</a-divider>
-          <a-form-item label="Файл разметки (.mind)" name="mindNew">
+          <a-form-item label="Файл разметки (.mind)" name="mindFileList">
             <a-upload
               v-model:file-list="formState.mindFileList"
               :max-count="1"
@@ -132,7 +132,7 @@
               <a-button>Выбрать новый файл</a-button>
             </a-upload>
           </a-form-item>
-          <a-form-item label="3D-модель (GLB)" name="glbNew">
+          <a-form-item label="3D-модель (GLB)" name="glbFileList">
             <a-upload
               v-model:file-list="formState.glbFileList"
               :max-count="1"
@@ -142,7 +142,7 @@
               <a-button>Выбрать новый файл</a-button>
             </a-upload>
           </a-form-item>
-          <a-form-item label="Аудио" name="audioNew">
+          <a-form-item label="Аудио" name="audioFileList">
             <a-upload
               v-model:file-list="formState.audioFileList"
               :max-count="1"
@@ -224,9 +224,36 @@ const formState = reactive({
   audioFileList: [] as UploadFile[],
 })
 
+function getFileFromUploadItem(item: UploadFile | undefined): File | undefined {
+  if (!item) return undefined
+  const file = item.originFileObj ?? item
+  return file instanceof File ? file : undefined
+}
+
 const formRules = reactive({
   name: [{ required: true, message: 'Введите название' }],
   scale: [{ required: true, message: 'Укажите масштаб' }],
+  mindFileList: [{
+    validator(_rule: unknown, v: UploadFile[]) {
+      if (editingMarker.value) return Promise.resolve()
+      const file = getFileFromUploadItem(v?.[0])
+      return file ? Promise.resolve() : Promise.reject(new Error('Выберите файл разметки (.mind)'))
+    },
+  }],
+  glbFileList: [{
+    validator(_rule: unknown, v: UploadFile[]) {
+      if (editingMarker.value) return Promise.resolve()
+      const file = getFileFromUploadItem(v?.[0])
+      return file ? Promise.resolve() : Promise.reject(new Error('Выберите 3D-модель (GLB)'))
+    },
+  }],
+  audioFileList: [{
+    validator(_rule: unknown, v: UploadFile[]) {
+      if (editingMarker.value) return Promise.resolve()
+      const file = getFileFromUploadItem(v?.[0])
+      return file ? Promise.resolve() : Promise.reject(new Error('Выберите аудиофайл'))
+    },
+  }],
 })
 
 async function loadMarkers() {
@@ -284,7 +311,8 @@ async function initPreview() {
 
   try {
     const loader = new GLTFLoader()
-    const glbUrl = getAssetUrl(marker.glbModelPath)
+    const baseUrl = getAssetUrl(marker.glbModelPath)
+    const glbUrl = baseUrl + (baseUrl.includes('?') ? '&' : '?') + `t=${Date.now()}`
     const gltf = await loader.loadAsync(glbUrl)
     const model = gltf.scene as THREE.Group
     const baseScale = 0.3
@@ -344,13 +372,13 @@ function buildFormData(): FormData {
   fd.append('name', formState.name)
   fd.append('scale', String(formState.scale))
 
-  const mindFile = formState.mindFileList[0]?.originFileObj
+  const mindFile = getFileFromUploadItem(formState.mindFileList[0])
   if (mindFile) fd.append('mind', mindFile)
 
-  const glbFile = formState.glbFileList[0]?.originFileObj
+  const glbFile = getFileFromUploadItem(formState.glbFileList[0])
   if (glbFile) fd.append('glb', glbFile)
 
-  const audioFile = formState.audioFileList[0]?.originFileObj
+  const audioFile = getFileFromUploadItem(formState.audioFileList[0])
   if (audioFile) fd.append('audio', audioFile)
 
   return fd
@@ -365,9 +393,9 @@ async function handleSubmit() {
 
   const isCreate = !editingMarker.value
   if (isCreate) {
-    const mindFile = formState.mindFileList[0]?.originFileObj
-    const glbFile = formState.glbFileList[0]?.originFileObj
-    const audioFile = formState.audioFileList[0]?.originFileObj
+    const mindFile = getFileFromUploadItem(formState.mindFileList[0])
+    const glbFile = getFileFromUploadItem(formState.glbFileList[0])
+    const audioFile = getFileFromUploadItem(formState.audioFileList[0])
     if (!mindFile || !glbFile || !audioFile) {
       message.error('Заполните все поля: разметка (.mind), 3D-модель (GLB), аудио')
       return
@@ -409,11 +437,11 @@ const handleLogout = async () => {
   } catch {
     // токен очищается в finally
   }
-  router.replace('/login')
+  await router.replace('/login')
 }
 
-onMounted(() => {
-  loadMarkers()
+onMounted(async() => {
+  await loadMarkers()
 })
 </script>
 
