@@ -57,6 +57,8 @@ export const markersApi = {
   getAll: () => MarkersService.getAllMarkers(),
   getById: (id: number) => MarkersService.getMarkerById(id),
   create: (formData: FormData) => MarkersService.createMarker(formData),
+  update: (id: number, formData: FormData) => MarkersService.updateMarker(id, formData),
+  delete: (id: number) => MarkersService.deleteMarker(id),
 }
 
 export async function getMarkers(): Promise<Marker[]> {

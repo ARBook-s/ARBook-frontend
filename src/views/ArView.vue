@@ -45,14 +45,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onBeforeUnmount } from 'vue'
 import logoUrl from '@/assets/logo.jpg'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import 'mind-ar-ts/src/image-target/index'
 import MindARThree from 'mind-ar-ts/src/image-target/three'
 import { getMarkers, getAssetUrl } from '@/api/markers'
+import { mergeMindFiles } from '@/utils/mergeMindFiles'
 import { isAxiosError } from 'axios'
+import type { Marker } from '@/api/types'
 
 const container = ref<HTMLDivElement | null>(null)
 const started = ref(false)
@@ -62,8 +64,25 @@ const cameraOnlyMode = ref(false)
 const showSoundHint = ref(true)
 const hideSoundHint = () => { showSoundHint.value = false }
 
-let mindar: MindARThree
-let mixer: THREE.AnimationMixer
+let mindar: MindARThree | undefined
+let mixers: THREE.AnimationMixer[] = []
+let audioElements: HTMLAudioElement[] = []
+let combinedMindBlobUrl: string | null = null
+
+onBeforeUnmount(() => {
+  if (mindar) {
+    mindar.stop()
+  }
+  if (combinedMindBlobUrl) {
+    URL.revokeObjectURL(combinedMindBlobUrl)
+    combinedMindBlobUrl = null
+  }
+  audioElements.forEach((el) => {
+    el.pause()
+    el.remove()
+  })
+  audioElements = []
+})
 let fallbackStream: MediaStream | null = null
 let fallbackVideo: HTMLVideoElement | null = null
 const cameraOnlyContainer = ref<HTMLDivElement | null>(null)
@@ -129,21 +148,21 @@ const start = async () => {
 
   try {
     const markers = await getMarkers()
-    const marker = markers[0]
-    if (!marker) {
+    if (!markers.length) {
       started.value = false
       await startCameraOnly('Нет маркеров')
       return
     }
 
-    const mindUrl = getAssetUrl(marker.mindFilePath)
-    const glbUrl = getAssetUrl(marker.glbModelPath)
-    const audioUrl = getAssetUrl(marker.audioPath)
+    const cacheBust = (url: string) =>
+      url + (url.includes('?') ? '&' : '?') + `t=${Date.now()}`
+    const mindUrls = markers.map((m) => cacheBust(getAssetUrl(m.mindFilePath)))
+    combinedMindBlobUrl = await mergeMindFiles(mindUrls)
 
     mindar = new MindARThree({
       container: container.value,
-      imageTargetSrc: mindUrl,
-      maxTrack: 1,
+      imageTargetSrc: combinedMindBlobUrl,
+      maxTrack: markers.length,
       uiLoading: 'no',
       uiScanning: 'no',
       uiError: 'no',
@@ -163,29 +182,65 @@ const start = async () => {
     scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1))
 
     const loader = new GLTFLoader()
-    const gltf = await loader.loadAsync(glbUrl)
+    const modelWrappers: THREE.Group[] = []
+    const visibleTargets = new Set<number>()
 
-    const model = gltf.scene as THREE.Group
-    const baseScale = 0.3
-    model.scale.setScalar(baseScale * marker.scale)
+    for (let i = 0; i < markers.length; i++) {
+      const marker = markers[i] as Marker
+      const glbUrl = cacheBust(getAssetUrl(marker.glbModelPath))
+      const gltf = await loader.loadAsync(glbUrl)
 
-    const modelWrapper = new THREE.Group()
-    modelWrapper.add(model)
+      const model = gltf.scene as THREE.Group
+      const baseScale = 0.3
+      model.scale.setScalar(baseScale * marker.scale)
 
-    const anchor = mindar.addAnchor(0)
-    anchor.group.add(modelWrapper)
+      const modelWrapper = new THREE.Group()
+      modelWrapper.add(model)
+      modelWrappers.push(modelWrapper)
 
-    let manualRotationY = 0
+      const anchor = mindar.addAnchor(i)
+      anchor.group.add(modelWrapper)
+
+      const m = new THREE.AnimationMixer(model)
+      mixers.push(m)
+      for (const clip of gltf.animations) {
+        m.clipAction(clip as THREE.AnimationClip).play()
+      }
+
+      const audioEl = new Audio()
+      audioEl.src = cacheBust(getAssetUrl(marker.audioPath))
+      audioEl.loop = true
+      audioEl.volume = 0.7
+      audioEl.preload = 'auto'
+      audioEl.setAttribute('playsinline', '')
+      audioEl.setAttribute('webkit-playsinline', '')
+      audioEl.style.display = 'none'
+      document.body.appendChild(audioEl)
+      audioElements.push(audioEl)
+
+      const anchorObj = anchor as unknown as { onTargetFound: () => void; onTargetLost: () => void }
+      anchorObj.onTargetFound = () => {
+        visibleTargets.add(i)
+        audioEl.currentTime = 0
+        audioEl.play().catch((e) => console.error('[AR Audio] play ошибка:', e))
+      }
+      anchorObj.onTargetLost = () => {
+        visibleTargets.delete(i)
+        audioEl.pause()
+      }
+    }
+
+    const manualRotationY = markers.map(() => 0)
     let lastTouchX = 0
-    let targetVisible = false
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 1) lastTouchX = e.touches[0]!.clientX
     }
     const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 1 && targetVisible) {
+      if (e.touches.length === 1 && visibleTargets.size > 0) {
         const t = e.touches[0]!
         const dx = t.clientX - lastTouchX
-        manualRotationY += dx * 0.01
+        const idx = Array.from(visibleTargets)[0] ?? 0
+        manualRotationY[idx] = (manualRotationY[idx] ?? 0) + dx * 0.01
         lastTouchX = t.clientX
       }
     }
@@ -193,9 +248,10 @@ const start = async () => {
       if (e.button === 0) lastTouchX = e.clientX
     }
     const handleMouseMove = (e: MouseEvent) => {
-      if (e.buttons === 1 && targetVisible) {
+      if (e.buttons === 1 && visibleTargets.size > 0) {
         const dx = e.clientX - lastTouchX
-        manualRotationY += dx * 0.01
+        const idx = Array.from(visibleTargets)[0] ?? 0
+        manualRotationY[idx] = (manualRotationY[idx] ?? 0) + dx * 0.01
         lastTouchX = e.clientX
       }
     }
@@ -207,65 +263,36 @@ const start = async () => {
       containerEl.addEventListener('mousemove', handleMouseMove)
     }
 
-    mixer = new THREE.AnimationMixer(model)
-    for (const clip of gltf.animations) {
-      mixer.clipAction(clip as THREE.AnimationClip).play()
-    }
-
-    const audioEl = new Audio()
-    audioEl.src = audioUrl
-    audioEl.loop = true
-    audioEl.volume = 0.7
-    audioEl.preload = 'auto'
-    audioEl.setAttribute('playsinline', '')
-    audioEl.setAttribute('webkit-playsinline', '')
-    audioEl.style.display = 'none'
-    document.body.appendChild(audioEl)
-
-    audioEl.addEventListener('canplaythrough', () => {
-      console.log('[AR Audio] HTML5 Audio готов:', audioUrl)
-    })
-    audioEl.addEventListener('error', (e) => {
-      console.error('[AR Audio] HTML5 Audio ошибка:', e)
-    })
-
     const unlockAudio = () => {
       showSoundHint.value = false
       document.removeEventListener('click', unlockAudio)
       document.removeEventListener('touchend', unlockAudio)
-      if (audioEl.paused) {
-        audioEl.play()
-          .then(() => {
-            audioEl.pause()
-            audioEl.currentTime = 0
-          })
-          .catch((e) => console.error('[AR Audio] unlock play ошибка:', e))
-      }
+      audioElements.forEach((el) => {
+        if (el.paused) {
+          el.play()
+            .then(() => {
+              el.pause()
+              el.currentTime = 0
+            })
+            .catch((e) => console.error('[AR Audio] unlock play ошибка:', e))
+        }
+      })
     }
     document.addEventListener('click', unlockAudio)
     document.addEventListener('touchend', unlockAudio)
 
-    let frameSkip = 0
-    const anchorObj = anchor as unknown as { onTargetFound: () => void; onTargetLost: () => void }
-    anchorObj.onTargetFound = () => {
-      targetVisible = true
-      audioEl.currentTime = 0
-      audioEl.play().catch((e) => console.error('[AR Audio] play ошибка:', e))
-    }
-    anchorObj.onTargetLost = () => {
-      targetVisible = false
-      audioEl.pause()
-    }
-
     await mindar.start()
 
+    let frameSkip = 0
     let lastTime = performance.now()
     renderer.setAnimationLoop((time) => {
       const delta = (time - lastTime) / 1000
       lastTime = time
-      modelWrapper.rotation.y = manualRotationY
-      if (targetVisible) {
-        mixer.update(delta)
+      modelWrappers.forEach((mw, idx) => {
+        mw.rotation.y = manualRotationY[idx] ?? 0
+      })
+      if (visibleTargets.size > 0) {
+        mixers.forEach((m) => m.update(delta))
         renderer.render(scene, camera)
       } else {
         frameSkip++

@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import Antd from 'ant-design-vue'
 import App from './App.vue'
 import { pinia } from './api/store'
+import { useAuthStore } from './api/store/auth'
 import 'ant-design-vue/dist/reset.css'
 import './style.css'
 import router from './api/router'
@@ -13,4 +14,7 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('vconsole'))
   })
 }
 
-createApp(App).use(pinia).use(router).use(Antd).mount('#app')
+const app = createApp(App)
+app.use(pinia)
+useAuthStore().init()
+app.use(router).use(Antd).mount('#app')

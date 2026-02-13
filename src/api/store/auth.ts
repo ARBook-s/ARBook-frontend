@@ -1,27 +1,23 @@
 import { defineStore } from 'pinia'
-import {
-  login as apiLogin,
-  logout as apiLogout,
-  isAuthenticated,
-} from '@/api/services/authService'
-import type { LoginCredentials } from '@/api/services/authService'
+import authService from '@/api/services/authService'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     initialized: false,
+    isAuthenticated: false,
   }),
-  getters: {
-    isAuthenticated: () => isAuthenticated(),
-  },
   actions: {
-    async login(credentials: LoginCredentials) {
-      await apiLogin(credentials)
+    async login(credentials: { username: string; password: string }) {
+      await authService.LoginAdmin(credentials.username, credentials.password)
+      this.isAuthenticated = true
     },
     async logout() {
-      await apiLogout()
+      await authService.LogOut()
+      this.isAuthenticated = false
     },
     init() {
       this.initialized = true
+      this.isAuthenticated = authService.IsAuthenticated()
     },
   },
 })

@@ -28,7 +28,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/login',
-    name: 'login',
+    name: 'Login',
     component: Login,
     meta: {
       title: 'Вход',
@@ -37,7 +37,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin',
-    name: 'admin',
+    name: 'Admin',
     component: AdminView,
     meta: {
       title: 'Админ-панель',
