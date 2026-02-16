@@ -4,7 +4,7 @@
       <img :src="logoUrl" alt="ARBook" class="start__logo" width="80" height="80" />
       <h1 class="start__title">AR-книга</h1>
       <p class="start__subtitle">Наведите камеру на маркер в книге</p>
-      <button class="start__btn" @click="start" :disabled="loading">
+      <button class="start__btn" @click="start" :disabled="arLoading">
         Запустить камеру
       </button>
     </div>
@@ -16,13 +16,16 @@
       <div class="start__icon start__icon--error" aria-hidden="true">!</div>
       <h2 class="start__title start__title--small">Что-то пошло не так</h2>
       <p class="start__error-text">{{ error }}</p>
-      <button class="start__btn start__btn--secondary" @click="error = ''; loading = false">
+      <button
+        class="start__btn start__btn--secondary"
+        @click="error = ''; started = false"
+      >
         Попробовать снова
       </button>
     </div>
   </div>
 
-  <div v-if="loading" class="start start--loading">
+  <div v-if="arLoading" class="start start--loading">
     <div class="start__card start__card--loading">
       <div class="start__spinner" aria-hidden="true"></div>
       <p class="start__loading-text">Загрузка…</p>
@@ -30,62 +33,151 @@
   </div>
 
   <!-- Камера при проблемах с сетью -->
-  <div v-if="cameraOnlyMode" ref="cameraOnlyContainer" class="ar ar--active ar--camera-only">
+  <div
+    v-if="cameraOnlyMode"
+    ref="cameraOnlyContainer"
+    class="ar ar--active ar--camera-only"
+  >
     <div class="camera-only-overlay">
       <div class="camera-only-overlay__card">
-        <p class="camera-only-overlay__text">{{ error }}</p>
-        <button class="camera-only-overlay__btn" @click="stopCameraOnly">Попробовать снова</button>
+        <p class="camera-only-overlay__text">{{ cameraErrorMessage }}</p>
+        <button class="camera-only-overlay__btn" @click="handleStopCameraOnly">
+          Попробовать снова
+        </button>
       </div>
     </div>
   </div>
+
   <div ref="container" class="ar" :class="{ 'ar--active': started }"></div>
+
   <div v-if="started && showSoundHint" class="sound-hint" @click="hideSoundHint">
     Нажмите для включения звука
+  </div>
+
+  <!-- Performance stats overlay -->
+  <button v-if="started" class="stats-toggle" @click="perfStats.toggle">
+    {{ perfStats.visible.value ? '✕' : 'STATS' }}
+  </button>
+  <div v-if="started && perfStats.visible.value" class="stats-overlay">
+    <div class="stats-row stats-row--highlight">
+      <span>FPS</span>
+      <span :class="fpsClass">{{ perfStats.stats.value.fps }}</span>
+    </div>
+    <div class="stats-row">
+      <span>Frame</span>
+      <span>{{ perfStats.stats.value.frameTime }} ms</span>
+    </div>
+    <div class="stats-divider"></div>
+    <div class="stats-row">
+      <span>GPU</span>
+      <span class="stats-gpu">{{ gpuShort }}</span>
+    </div>
+    <div class="stats-row">
+      <span>Pixel Ratio</span>
+      <span>{{ perfStats.stats.value.pixelRatio.toFixed(1) }}</span>
+    </div>
+    <div class="stats-row">
+      <span>Screen</span>
+      <span>{{ perfStats.stats.value.screenSize }}</span>
+    </div>
+    <div class="stats-row">
+      <span>Canvas</span>
+      <span>{{ perfStats.stats.value.canvasSize }}</span>
+    </div>
+    <div class="stats-divider"></div>
+    <div class="stats-row">
+      <span>Markers</span>
+      <span>{{ perfStats.stats.value.visibleTargets }} / {{ perfStats.stats.value.totalMarkers }}</span>
+    </div>
+    <div class="stats-row">
+      <span>Draw Calls</span>
+      <span>{{ perfStats.stats.value.drawCalls }}</span>
+    </div>
+    <div class="stats-row">
+      <span>Triangles</span>
+      <span>{{ formatNumber(perfStats.stats.value.triangles) }}</span>
+    </div>
+    <div class="stats-row">
+      <span>Textures</span>
+      <span>{{ perfStats.stats.value.textures }}</span>
+    </div>
+    <div class="stats-row">
+      <span>Geometries</span>
+      <span>{{ perfStats.stats.value.geometries }}</span>
+    </div>
+    <template v-if="perfStats.stats.value.memory">
+      <div class="stats-divider"></div>
+      <div class="stats-row">
+        <span>JS Heap</span>
+        <span>{{ formatMB(perfStats.stats.value.memory.usedJSHeapSize) }} / {{ formatMB(perfStats.stats.value.memory.totalJSHeapSize) }}</span>
+      </div>
+      <div class="stats-row">
+        <span>Heap Limit</span>
+        <span>{{ formatMB(perfStats.stats.value.memory.jsHeapSizeLimit) }}</span>
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onBeforeUnmount } from 'vue'
-import logoUrl from '@/assets/logo.jpg'
-import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import 'mind-ar-ts/src/image-target/index'
-import MindARThree from 'mind-ar-ts/src/image-target/three'
-import { getMarkers, getAssetUrl } from '@/api/markers'
-import { mergeMindFiles } from '@/utils/mergeMindFiles'
+import { ref, nextTick, computed } from 'vue'
 import { isAxiosError } from 'axios'
-import type { Marker } from '@/api/types'
+import logoUrl from '@/assets/logo.jpg'
+import { useArScene } from '@/composables/useArScene'
+import { useCameraFallback } from '@/composables/useCameraFallback'
+import { useModelRotation } from '@/composables/useModelRotation'
+import { useAudioUnlock } from '@/composables/useAudioUnlock'
+import { usePerformanceStats } from '@/composables/usePerformanceStats'
 
 const container = ref<HTMLDivElement | null>(null)
 const started = ref(false)
-const loading = ref(false)
 const error = ref('')
-const cameraOnlyMode = ref(false)
-const showSoundHint = ref(true)
-const hideSoundHint = () => { showSoundHint.value = false }
 
-let mindar: MindARThree | undefined
-let mixers: THREE.AnimationMixer[] = []
-let audioElements: HTMLAudioElement[] = []
-let combinedMindBlobUrl: string | null = null
+const { loading: arLoading, startArScene } = useArScene()
+const {
+  cameraOnlyMode,
+  cameraOnlyContainer,
+  errorMessage: cameraErrorMessage,
+  startCameraOnly,
+  stopCameraOnly,
+} = useCameraFallback()
 
-onBeforeUnmount(() => {
-  if (mindar) {
-    mindar.stop()
-  }
-  if (combinedMindBlobUrl) {
-    URL.revokeObjectURL(combinedMindBlobUrl)
-    combinedMindBlobUrl = null
-  }
-  audioElements.forEach((el) => {
-    el.pause()
-    el.remove()
-  })
-  audioElements = []
+void cameraOnlyContainer
+
+let sceneAudioElements: HTMLAudioElement[] = []
+const { showSoundHint, hideSoundHint, attach: attachAudioUnlock } = useAudioUnlock(
+  () => sceneAudioElements,
+)
+
+let sceneVisibleTargets = new Set<number>()
+const { manualRotationY, attach: attachRotation, init: initRotation } = useModelRotation(
+  () => sceneVisibleTargets,
+)
+
+const perfStats = usePerformanceStats()
+
+const fpsClass = computed(() => {
+  const fps = perfStats.stats.value.fps
+  if (fps >= 50) return 'stats-val--good'
+  if (fps >= 25) return 'stats-val--warn'
+  return 'stats-val--bad'
 })
-let fallbackStream: MediaStream | null = null
-let fallbackVideo: HTMLVideoElement | null = null
-const cameraOnlyContainer = ref<HTMLDivElement | null>(null)
+
+const gpuShort = computed(() => {
+  const gpu = perfStats.stats.value.gpu
+  if (!gpu || gpu === 'N/A') return 'N/A'
+  return gpu.length > 30 ? gpu.slice(0, 28) + '...' : gpu
+})
+
+function formatMB(bytes: number): string {
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+}
+
+function formatNumber(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+  return String(n)
+}
 
 function getErrorMessage(e: unknown): string {
   if (isAxiosError(e) && (e.code === 'ERR_NETWORK' || e.message === 'Network Error')) {
@@ -94,219 +186,47 @@ function getErrorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
-async function startCameraOnly(message: string) {
-  error.value = message
-  cameraOnlyMode.value = true
-  await nextTick()
-  const el = cameraOnlyContainer.value
-  if (!el) return
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: 'environment' },
-    })
-    fallbackStream = stream
-    const video = document.createElement('video')
-    video.setAttribute('autoplay', '')
-    video.setAttribute('muted', '')
-    video.setAttribute('playsinline', '')
-    video.style.position = 'absolute'
-    video.style.inset = '0'
-    video.style.width = '100%'
-    video.style.height = '100%'
-    video.style.objectFit = 'cover'
-    video.srcObject = stream
-    el.insertBefore(video, el.firstChild)
-    fallbackVideo = video
-  } catch (e) {
-    console.error('Camera error:', e)
-    error.value = 'Камера недоступна. ' + (e instanceof Error ? e.message : String(e))
-  }
-}
-
-function stopCameraOnly() {
-  if (fallbackStream) {
-    fallbackStream.getTracks().forEach((t) => t.stop())
-    fallbackStream = null
-  }
-  if (fallbackVideo?.parentNode) {
-    fallbackVideo.parentNode.removeChild(fallbackVideo)
-    fallbackVideo = null
-  }
-  cameraOnlyMode.value = false
+function handleStopCameraOnly() {
+  stopCameraOnly()
   error.value = ''
-  loading.value = false
+  started.value = false
 }
 
 const start = async () => {
   if (!container.value) return
   error.value = ''
-  loading.value = true
   started.value = true
 
   await nextTick()
 
   try {
-    const markers = await getMarkers()
-    if (!markers.length) {
+    const ctx = await startArScene(container.value)
+
+    if (!ctx) {
       started.value = false
       await startCameraOnly('Нет маркеров')
       return
     }
 
-    const cacheBust = (url: string) =>
-      url + (url.includes('?') ? '&' : '?') + `t=${Date.now()}`
-    const mindUrls = markers.map((m) => cacheBust(getAssetUrl(m.mindFilePath)))
-    combinedMindBlobUrl = await mergeMindFiles(mindUrls)
+    sceneAudioElements = ctx.audioElements
+    sceneVisibleTargets = ctx.visibleTargets
 
-    mindar = new MindARThree({
-      container: container.value,
-      imageTargetSrc: combinedMindBlobUrl,
-      maxTrack: markers.length,
-      uiLoading: 'no',
-      uiScanning: 'no',
-      uiError: 'no',
-      filterMinCF: 0.0001,
-      filterBeta: 500,
-    })
-
-    const scene = (mindar as unknown as { scene: THREE.Scene }).scene
-    const camera = (mindar as unknown as { camera: THREE.PerspectiveCamera }).camera
-    const renderer = (mindar as unknown as { renderer: THREE.WebGLRenderer }).renderer
-
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-    if (isMobile) {
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    }
-
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1))
-
-    const loader = new GLTFLoader()
-    const modelWrappers: THREE.Group[] = []
-    const visibleTargets = new Set<number>()
-
-    for (let i = 0; i < markers.length; i++) {
-      const marker = markers[i] as Marker
-      const glbUrl = cacheBust(getAssetUrl(marker.glbModelPath))
-      const gltf = await loader.loadAsync(glbUrl)
-
-      const model = gltf.scene as THREE.Group
-      const baseScale = 0.3
-      model.scale.setScalar(baseScale * marker.scale)
-
-      const modelWrapper = new THREE.Group()
-      modelWrapper.add(model)
-      modelWrappers.push(modelWrapper)
-
-      const anchor = mindar.addAnchor(i)
-      anchor.group.add(modelWrapper)
-
-      const m = new THREE.AnimationMixer(model)
-      mixers.push(m)
-      for (const clip of gltf.animations) {
-        m.clipAction(clip as THREE.AnimationClip).play()
-      }
-
-      const audioEl = new Audio()
-      audioEl.src = cacheBust(getAssetUrl(marker.audioPath))
-      audioEl.loop = true
-      audioEl.volume = 0.7
-      audioEl.preload = 'auto'
-      audioEl.setAttribute('playsinline', '')
-      audioEl.setAttribute('webkit-playsinline', '')
-      audioEl.style.display = 'none'
-      document.body.appendChild(audioEl)
-      audioElements.push(audioEl)
-
-      const anchorObj = anchor as unknown as { onTargetFound: () => void; onTargetLost: () => void }
-      anchorObj.onTargetFound = () => {
-        visibleTargets.add(i)
-        audioEl.currentTime = 0
-        audioEl.play().catch((e) => console.error('[AR Audio] play ошибка:', e))
-      }
-      anchorObj.onTargetLost = () => {
-        visibleTargets.delete(i)
-        audioEl.pause()
-      }
-    }
-
-    const manualRotationY = markers.map(() => 0)
-    let lastTouchX = 0
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) lastTouchX = e.touches[0]!.clientX
-    }
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 1 && visibleTargets.size > 0) {
-        const t = e.touches[0]!
-        const dx = t.clientX - lastTouchX
-        const idx = Array.from(visibleTargets)[0] ?? 0
-        manualRotationY[idx] = (manualRotationY[idx] ?? 0) + dx * 0.01
-        lastTouchX = t.clientX
-      }
-    }
-    const handleMouseDown = (e: MouseEvent) => {
-      if (e.button === 0) lastTouchX = e.clientX
-    }
-    const handleMouseMove = (e: MouseEvent) => {
-      if (e.buttons === 1 && visibleTargets.size > 0) {
-        const dx = e.clientX - lastTouchX
-        const idx = Array.from(visibleTargets)[0] ?? 0
-        manualRotationY[idx] = (manualRotationY[idx] ?? 0) + dx * 0.01
-        lastTouchX = e.clientX
-      }
-    }
-    const containerEl = container.value
-    if (containerEl) {
-      containerEl.addEventListener('touchstart', handleTouchStart, { passive: true })
-      containerEl.addEventListener('touchmove', handleTouchMove, { passive: true })
-      containerEl.addEventListener('mousedown', handleMouseDown)
-      containerEl.addEventListener('mousemove', handleMouseMove)
-    }
-
-    const unlockAudio = () => {
-      showSoundHint.value = false
-      document.removeEventListener('click', unlockAudio)
-      document.removeEventListener('touchend', unlockAudio)
-      audioElements.forEach((el) => {
-        if (el.paused) {
-          el.play()
-            .then(() => {
-              el.pause()
-              el.currentTime = 0
-            })
-            .catch((e) => console.error('[AR Audio] unlock play ошибка:', e))
-        }
+    initRotation(ctx.manualRotationY.length)
+    for (let i = 0; i < ctx.manualRotationY.length; i++) {
+      Object.defineProperty(ctx.manualRotationY, i, {
+        get: () => manualRotationY[i] ?? 0,
+        set: (v: number) => {
+          manualRotationY[i] = v
+        },
       })
     }
-    document.addEventListener('click', unlockAudio)
-    document.addEventListener('touchend', unlockAudio)
 
-    await mindar.start()
-
-    let frameSkip = 0
-    let lastTime = performance.now()
-    renderer.setAnimationLoop((time) => {
-      const delta = (time - lastTime) / 1000
-      lastTime = time
-      modelWrappers.forEach((mw, idx) => {
-        mw.rotation.y = manualRotationY[idx] ?? 0
-      })
-      if (visibleTargets.size > 0) {
-        mixers.forEach((m) => m.update(delta))
-        renderer.render(scene, camera)
-      } else {
-        frameSkip++
-        if (frameSkip % 2 === 0) {
-          renderer.render(scene, camera)
-        }
-      }
-    })
+    attachRotation(container.value)
+    attachAudioUnlock()
+    perfStats.start(ctx.renderer, ctx.visibleTargets, ctx.manualRotationY.length)
   } catch (e) {
-    console.error('AR start error:', e)
     started.value = false
     await startCameraOnly(getErrorMessage(e))
-  } finally {
-    loading.value = false
   }
 }
 </script>
@@ -321,7 +241,6 @@ const start = async () => {
   pointer-events: auto;
 }
 
-/* Тёплая палитра: крем, тёмный теал, мягкие тени */
 .start {
   position: absolute;
   inset: 0;
@@ -330,7 +249,11 @@ const start = async () => {
   justify-content: center;
   background: linear-gradient(160deg, #f8f4ee 0%, #ebe6dc 100%);
   color: #2c3539;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
   padding: 1.5rem;
   box-sizing: border-box;
 }
@@ -342,7 +265,9 @@ const start = async () => {
   max-width: 20rem;
   width: 100%;
   text-align: center;
-  box-shadow: 0 8px 32px rgba(44, 53, 57, 0.08), 0 2px 8px rgba(44, 53, 57, 0.04);
+  box-shadow:
+    0 8px 32px rgba(44, 53, 57, 0.08),
+    0 2px 8px rgba(44, 53, 57, 0.04);
 }
 
 .start__logo {
@@ -386,7 +311,9 @@ const start = async () => {
   border: none;
   border-radius: 0.75rem;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
   box-shadow: 0 4px 14px rgba(13, 92, 99, 0.35);
 }
 
@@ -428,7 +355,6 @@ const start = async () => {
   color: #0d5c63;
 }
 
-/* Ошибка */
 .start__card--error {
   border: 1px solid rgba(196, 92, 58, 0.2);
 }
@@ -458,7 +384,6 @@ const start = async () => {
   line-height: 1.5;
 }
 
-/* Загрузка */
 .start__card--loading {
   padding: 2rem;
 }
@@ -480,10 +405,11 @@ const start = async () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* Режим «только камера» — светлый оверлей */
 .ar--camera-only {
   pointer-events: auto;
 }
@@ -530,7 +456,9 @@ const start = async () => {
   border: none;
   border-radius: 0.75rem;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
   box-shadow: 0 4px 14px rgba(13, 92, 99, 0.35);
 }
 
@@ -553,4 +481,86 @@ const start = async () => {
   pointer-events: auto;
   cursor: pointer;
 }
+
+:deep(.camera-fallback-video) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Performance stats */
+.stats-toggle {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-family: monospace;
+  color: #0f0;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.stats-overlay {
+  position: fixed;
+  top: 2.2rem;
+  left: 0.5rem;
+  z-index: 100;
+  min-width: 180px;
+  padding: 0.5rem 0.6rem;
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.65rem;
+  line-height: 1.5;
+  color: #ccc;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.stats-row--highlight {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.stats-row span:first-child {
+  color: #888;
+}
+
+.stats-row span:last-child {
+  color: #eee;
+  text-align: right;
+}
+
+.stats-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0.25rem 0;
+}
+
+.stats-gpu {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats-val--good { color: #4f4 !important; }
+.stats-val--warn { color: #fc0 !important; }
+.stats-val--bad { color: #f44 !important; }
 </style>

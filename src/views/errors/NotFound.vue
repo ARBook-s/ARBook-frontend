@@ -14,13 +14,3 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const goHome = () => router.replace('/')
 </script>
-
-<style scoped>
-.error-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-}
-</style>

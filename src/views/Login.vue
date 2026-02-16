@@ -1,35 +1,24 @@
 <template>
   <div class="login">
     <a-card title="Вход в админ-панель" class="login__card">
-      <a-form
-        :model="form"
-        layout="vertical"
-        @submit.prevent="handleSubmit"
-      >
+      <a-form :model="form" layout="vertical" @submit.prevent="handleSubmit">
         <a-form-item v-if="error" :validate-status="'error'" :help="error" />
-        <a-form-item label="Имя пользователя" name="username" :rules="[{ required: true, message: 'Введите имя пользователя' }]">
-          <a-input
-            v-model:value="form.username"
-            type="text"
-            placeholder="username"
-            size="large"
-          />
+        <a-form-item
+          label="Имя пользователя"
+          name="username"
+          :rules="[{ required: true, message: 'Введите имя пользователя' }]"
+        >
+          <a-input v-model:value="form.username" type="text" placeholder="username" size="large" />
         </a-form-item>
-        <a-form-item label="Пароль" name="password" :rules="[{ required: true, message: 'Введите пароль' }]">
-          <a-input-password
-            v-model:value="form.password"
-            placeholder="Пароль"
-            size="large"
-          />
+        <a-form-item
+          label="Пароль"
+          name="password"
+          :rules="[{ required: true, message: 'Введите пароль' }]"
+        >
+          <a-input-password v-model:value="form.password" placeholder="Пароль" size="large" />
         </a-form-item>
         <a-form-item>
-          <a-button
-            type="primary"
-            html-type="submit"
-            size="large"
-            block
-            :loading="loading"
-          >
+          <a-button type="primary" html-type="submit" size="large" block :loading="loading">
             Войти
           </a-button>
         </a-form-item>
@@ -54,7 +43,7 @@ const handleSubmit = async () => {
   loading.value = true
   try {
     await authStore.login({ username: form.username, password: form.password })
-    await router.push({name: 'Admin'})
+    await router.push({ name: 'Admin' })
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Ошибка входа'
   } finally {

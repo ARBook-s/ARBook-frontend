@@ -20,18 +20,3 @@ const goHome = () => router.replace('/')
 const goAdmin = () => router.replace('/admin')
 const goLogin = () => router.replace('/login')
 </script>
-
-<style scoped>
-.error-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: #f5f5f5;
-}
-.error-page :deep(.ant-result-extra) {
-  display: flex;
-  gap: 8px;
-}
-</style>

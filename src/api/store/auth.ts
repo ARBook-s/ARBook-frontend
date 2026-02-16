@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import authService from '@/api/services/authService'
+import AuthService from '@/api/services/authService'
+import type { LoginCredentials } from '@/api/types'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -7,17 +8,17 @@ export const useAuthStore = defineStore('auth', {
     isAuthenticated: false,
   }),
   actions: {
-    async login(credentials: { username: string; password: string }) {
-      await authService.LoginAdmin(credentials.username, credentials.password)
+    async login(credentials: LoginCredentials) {
+      await AuthService.loginAdmin(credentials.username, credentials.password)
       this.isAuthenticated = true
     },
     async logout() {
-      await authService.LogOut()
+      await AuthService.logOut()
       this.isAuthenticated = false
     },
     init() {
       this.initialized = true
-      this.isAuthenticated = authService.IsAuthenticated()
+      this.isAuthenticated = AuthService.isAuthenticated()
     },
   },
 })

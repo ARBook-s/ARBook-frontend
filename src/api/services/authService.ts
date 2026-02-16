@@ -1,6 +1,7 @@
 import axiosInstance from '../axios/axiosInstance'
-
 import { SESSION_FLAG } from '../authConstants'
+import { throwApiError } from '../utils/handleApiError'
+import type { AuthResponse } from '../types'
 
 function getToken(): string | null {
   if (typeof localStorage === 'undefined') return null
@@ -8,15 +9,13 @@ function getToken(): string | null {
   return t && t !== '' ? t : null
 }
 
-class authService {
+class AuthService {
   /**
-   * Авторизация
-   * @param username 
-   * @param password 
+   * Авторизация. Сохраняет токен или SESSION_FLAG в localStorage.
    */
-  static async LoginAdmin(username: string, password: string): Promise<any>{
+  static async loginAdmin(username: string, password: string): Promise<void> {
     try {
-      const response = await axiosInstance.post<{ token?: string; message?: string; success?: boolean } | string>('/api/auth/login', {
+      const response = await axiosInstance.post<AuthResponse | string>('/api/auth/login', {
         username,
         password,
       })
@@ -24,33 +23,25 @@ class authService {
       const token = typeof data === 'object' && data !== null ? data.token : null
       if (token && typeof localStorage !== 'undefined') {
         localStorage.setItem('token', token)
-      } else if (typeof localStorage !== 'undefined' && (response.status === 200 || response.status === 201)) {
+      } else if (
+        typeof localStorage !== 'undefined' &&
+        (response.status === 200 || response.status === 201)
+      ) {
         localStorage.setItem('token', SESSION_FLAG)
       }
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string; error?: string } }; message?: string }
-      const message =
-        err.response?.data?.message ??
-        err.response?.data?.error ??
-        err.message ??
-        'Ошибка при авторизации'
-      throw new Error(message)
+      throwApiError(error, 'Ошибка при авторизации')
     }
   }
+
   /**
-   * Выход из системы
+   * Выход из системы. Всегда удаляет токен из localStorage.
    */
-  static async LogOut(): Promise<void>{
+  static async logOut(): Promise<void> {
     try {
       await axiosInstance.post('/api/auth/logout')
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string; error?: string } }; message?: string }
-      const message =
-        err.response?.data?.message ??
-        err.response?.data?.error ??
-        err.message ??
-        'Ошибка при выходе'
-      throw new Error(message)
+      throwApiError(error, 'Ошибка при выходе')
     } finally {
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem('token')
@@ -58,12 +49,10 @@ class authService {
     }
   }
 
-  /**
-   * Проверка авторизации
-   */
-  static IsAuthenticated(): boolean {
+  /** Проверка наличия токена/сессии. */
+  static isAuthenticated(): boolean {
     return !!getToken()
   }
 }
 
-export default authService
+export default AuthService

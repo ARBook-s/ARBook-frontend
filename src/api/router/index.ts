@@ -1,9 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/api/store/auth'
-import ArView from '@/views/ArView.vue'
+
+// Lazy-loaded: Three.js + MindAR + TensorFlow грузятся только при переходе на AR
+const ArView = () => import('@/views/ArView.vue')
+const AdminView = () => import('@/views/AdminView.vue')
+
+// Лёгкие страницы — в основном бандле
 import Login from '@/views/Login.vue'
-import AdminView from '@/views/AdminView.vue'
 import NotFound from '@/views/errors/NotFound.vue'
 import Forbidden from '@/views/errors/Forbidden.vue'
 
@@ -92,13 +96,13 @@ function updateDocumentMeta(to: { meta?: { title?: string; description?: string 
 }
 
 router.beforeEach((to) => {
-  if (to.meta.requiresAuth) {
-    const authStore = useAuthStore()
-    if (!authStore.isAuthenticated) {
-      return { path: '/login', query: { redirect: to.fullPath }, replace: true }
-    }
+  const authStore = useAuthStore()
+
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    return { path: '/login', query: { redirect: to.fullPath }, replace: true }
   }
-  if (to.path === '/login' && useAuthStore().isAuthenticated) {
+
+  if (to.path === '/login' && authStore.isAuthenticated) {
     const redirect = to.query.redirect
     const path =
       typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')
@@ -106,6 +110,7 @@ router.beforeEach((to) => {
         : '/admin'
     return { path, replace: true }
   }
+
   return true
 })
 
