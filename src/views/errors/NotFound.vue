@@ -1,11 +1,11 @@
 <template>
-  <div class="error-page">
+  <main class="error-page" role="main">
     <a-result status="404" title="404" sub-title="Страница не найдена">
       <template #extra>
-        <a-button type="primary" @click="goHome">На главную</a-button>
+        <a-button type="primary" @click="goHome" aria-label="Вернуться на главную страницу">На главную</a-button>
       </template>
     </a-result>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">
@@ -14,13 +14,3 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const goHome = () => router.replace('/')
 </script>
-
-<style scoped>
-.error-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-}
-</style>

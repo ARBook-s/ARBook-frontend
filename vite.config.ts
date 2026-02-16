@@ -36,6 +36,17 @@ export default defineConfig({
     exclude: ['mind-ar-ts'],
     include: ['long'],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-three': ['three'],
+          'vendor-tf': ['@tensorflow/tfjs', '@tensorflow/tfjs-backend-webgl'],
+          'vendor-antd': ['ant-design-vue'],
+        },
+      },
+    },
+  },
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },

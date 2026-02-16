@@ -6,3 +6,20 @@ export interface Marker {
   audioPath: string
   scale: number
 }
+
+export interface LoginCredentials {
+  username: string
+  password: string
+}
+
+export interface AuthResponse {
+  token?: string
+  message?: string
+  success?: boolean
+}
+
+export interface ApiErrorData {
+  message?: string
+  error?: string
+  title?: string
+}

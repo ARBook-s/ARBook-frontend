@@ -1,91 +1,117 @@
 <template>
-  <div v-if="!started && !error" class="start">
-    <div class="start__card">
-      <img :src="logoUrl" alt="ARBook" class="start__logo" width="80" height="80" />
+  <main v-if="!started && !error" class="start" :class="{ 'start--landscape': isLandscape }" role="main">
+    <article class="start__card">
+      <img :src="logoUrl" alt="Логотип ARBook — интерактивная AR-книга" class="start__logo" width="80" height="80" />
       <h1 class="start__title">AR-книга</h1>
       <p class="start__subtitle">Наведите камеру на маркер в книге</p>
-      <button class="start__btn" @click="start" :disabled="loading">
+      <button class="start__btn" @click="start" :disabled="arLoading" aria-label="Запустить камеру для AR">
         Запустить камеру
       </button>
-    </div>
-    <router-link to="/admin" class="start__admin">Админ</router-link>
-  </div>
+    </article>
+    <nav class="start__nav" aria-label="Навигация">
+      <router-link to="/admin" class="start__admin">Админ</router-link>
+    </nav>
+  </main>
 
-  <div v-if="error && !cameraOnlyMode" class="start start--error">
+  <section v-if="error && !cameraOnlyMode" class="start start--error" role="alert" aria-live="assertive">
     <div class="start__card start__card--error">
       <div class="start__icon start__icon--error" aria-hidden="true">!</div>
       <h2 class="start__title start__title--small">Что-то пошло не так</h2>
       <p class="start__error-text">{{ error }}</p>
-      <button class="start__btn start__btn--secondary" @click="error = ''; loading = false">
+      <button
+        class="start__btn start__btn--secondary"
+        @click="error = ''; started = false"
+        aria-label="Попробовать запустить камеру снова"
+      >
         Попробовать снова
       </button>
     </div>
-  </div>
+  </section>
 
-  <div v-if="loading" class="start start--loading">
+  <section v-if="arLoading" class="start start--loading" role="status" aria-live="polite">
     <div class="start__card start__card--loading">
       <div class="start__spinner" aria-hidden="true"></div>
       <p class="start__loading-text">Загрузка…</p>
     </div>
-  </div>
+  </section>
 
   <!-- Камера при проблемах с сетью -->
-  <div v-if="cameraOnlyMode" ref="cameraOnlyContainer" class="ar ar--active ar--camera-only">
+  <div
+    v-if="cameraOnlyMode"
+    ref="cameraOnlyContainer"
+    class="ar ar--active ar--camera-only"
+  >
     <div class="camera-only-overlay">
       <div class="camera-only-overlay__card">
-        <p class="camera-only-overlay__text">{{ error }}</p>
-        <button class="camera-only-overlay__btn" @click="stopCameraOnly">Попробовать снова</button>
+        <p class="camera-only-overlay__text">{{ cameraErrorMessage }}</p>
+        <button class="camera-only-overlay__btn" @click="handleStopCameraOnly">
+          Попробовать снова
+        </button>
       </div>
     </div>
   </div>
+
   <div ref="container" class="ar" :class="{ 'ar--active': started }"></div>
+
   <div v-if="started && showSoundHint" class="sound-hint" @click="hideSoundHint">
     Нажмите для включения звука
   </div>
+
+  <!-- Performance stats overlay -->
+  <PerformanceStatsPanel
+    v-if="started"
+    :stats="perfStats.stats.value"
+    :visible="perfStats.visible.value"
+    @toggle="perfStats.toggle"
+  />
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onBeforeUnmount } from 'vue'
-import logoUrl from '@/assets/logo.jpg'
-import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import 'mind-ar-ts/src/image-target/index'
-import MindARThree from 'mind-ar-ts/src/image-target/three'
-import { getMarkers, getAssetUrl } from '@/api/markers'
-import { mergeMindFiles } from '@/utils/mergeMindFiles'
+import { ref, nextTick, watch } from 'vue'
 import { isAxiosError } from 'axios'
-import type { Marker } from '@/api/types'
+import logoUrl from '@/assets/logo.jpg'
+import { useArScene } from '@/composables/useArScene'
+import { useCameraFallback } from '@/composables/useCameraFallback'
+import { useModelRotation } from '@/composables/useModelRotation'
+import { useAudioUnlock } from '@/composables/useAudioUnlock'
+import { usePerformanceStats } from '@/composables/usePerformanceStats'
+import { useOrientation } from '@/composables/useOrientation'
+import PerformanceStatsPanel from '@/components/PerformanceStatsPanel.vue'
 
 const container = ref<HTMLDivElement | null>(null)
 const started = ref(false)
-const loading = ref(false)
 const error = ref('')
-const cameraOnlyMode = ref(false)
-const showSoundHint = ref(true)
-const hideSoundHint = () => { showSoundHint.value = false }
 
-let mindar: MindARThree | undefined
-let mixers: THREE.AnimationMixer[] = []
-let audioElements: HTMLAudioElement[] = []
-let combinedMindBlobUrl: string | null = null
+const { loading: arLoading, startArScene, resize: resizeArScene } = useArScene()
+const { orientation, isLandscape } = useOrientation()
 
-onBeforeUnmount(() => {
-  if (mindar) {
-    mindar.stop()
+// При смене ориентации — пересчитать размеры MindAR, рендерера и камеры
+watch(orientation, () => {
+  if (started.value) {
+    resizeArScene()
   }
-  if (combinedMindBlobUrl) {
-    URL.revokeObjectURL(combinedMindBlobUrl)
-    combinedMindBlobUrl = null
-  }
-  audioElements.forEach((el) => {
-    el.pause()
-    el.remove()
-  })
-  audioElements = []
 })
-let fallbackStream: MediaStream | null = null
-let fallbackVideo: HTMLVideoElement | null = null
-const cameraOnlyContainer = ref<HTMLDivElement | null>(null)
+const {
+  cameraOnlyMode,
+  cameraOnlyContainer,
+  errorMessage: cameraErrorMessage,
+  startCameraOnly,
+  stopCameraOnly,
+} = useCameraFallback()
+
+void cameraOnlyContainer
+
+let sceneAudioElements: HTMLAudioElement[] = []
+const { showSoundHint, hideSoundHint, attach: attachAudioUnlock } = useAudioUnlock(
+  () => sceneAudioElements,
+)
+
+let sceneVisibleTargets = new Set<number>()
+const { manualRotationY, attach: attachRotation, init: initRotation } = useModelRotation(
+  () => sceneVisibleTargets,
+)
+
+const perfStats = usePerformanceStats()
 
 function getErrorMessage(e: unknown): string {
   if (isAxiosError(e) && (e.code === 'ERR_NETWORK' || e.message === 'Network Error')) {
@@ -94,219 +120,47 @@ function getErrorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
-async function startCameraOnly(message: string) {
-  error.value = message
-  cameraOnlyMode.value = true
-  await nextTick()
-  const el = cameraOnlyContainer.value
-  if (!el) return
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: 'environment' },
-    })
-    fallbackStream = stream
-    const video = document.createElement('video')
-    video.setAttribute('autoplay', '')
-    video.setAttribute('muted', '')
-    video.setAttribute('playsinline', '')
-    video.style.position = 'absolute'
-    video.style.inset = '0'
-    video.style.width = '100%'
-    video.style.height = '100%'
-    video.style.objectFit = 'cover'
-    video.srcObject = stream
-    el.insertBefore(video, el.firstChild)
-    fallbackVideo = video
-  } catch (e) {
-    console.error('Camera error:', e)
-    error.value = 'Камера недоступна. ' + (e instanceof Error ? e.message : String(e))
-  }
-}
-
-function stopCameraOnly() {
-  if (fallbackStream) {
-    fallbackStream.getTracks().forEach((t) => t.stop())
-    fallbackStream = null
-  }
-  if (fallbackVideo?.parentNode) {
-    fallbackVideo.parentNode.removeChild(fallbackVideo)
-    fallbackVideo = null
-  }
-  cameraOnlyMode.value = false
+function handleStopCameraOnly() {
+  stopCameraOnly()
   error.value = ''
-  loading.value = false
+  started.value = false
 }
 
 const start = async () => {
   if (!container.value) return
   error.value = ''
-  loading.value = true
   started.value = true
 
   await nextTick()
 
   try {
-    const markers = await getMarkers()
-    if (!markers.length) {
+    const ctx = await startArScene(container.value)
+
+    if (!ctx) {
       started.value = false
       await startCameraOnly('Нет маркеров')
       return
     }
 
-    const cacheBust = (url: string) =>
-      url + (url.includes('?') ? '&' : '?') + `t=${Date.now()}`
-    const mindUrls = markers.map((m) => cacheBust(getAssetUrl(m.mindFilePath)))
-    combinedMindBlobUrl = await mergeMindFiles(mindUrls)
+    sceneAudioElements = ctx.audioElements
+    sceneVisibleTargets = ctx.visibleTargets
 
-    mindar = new MindARThree({
-      container: container.value,
-      imageTargetSrc: combinedMindBlobUrl,
-      maxTrack: markers.length,
-      uiLoading: 'no',
-      uiScanning: 'no',
-      uiError: 'no',
-      filterMinCF: 0.0001,
-      filterBeta: 500,
-    })
-
-    const scene = (mindar as unknown as { scene: THREE.Scene }).scene
-    const camera = (mindar as unknown as { camera: THREE.PerspectiveCamera }).camera
-    const renderer = (mindar as unknown as { renderer: THREE.WebGLRenderer }).renderer
-
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-    if (isMobile) {
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    }
-
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1))
-
-    const loader = new GLTFLoader()
-    const modelWrappers: THREE.Group[] = []
-    const visibleTargets = new Set<number>()
-
-    for (let i = 0; i < markers.length; i++) {
-      const marker = markers[i] as Marker
-      const glbUrl = cacheBust(getAssetUrl(marker.glbModelPath))
-      const gltf = await loader.loadAsync(glbUrl)
-
-      const model = gltf.scene as THREE.Group
-      const baseScale = 0.3
-      model.scale.setScalar(baseScale * marker.scale)
-
-      const modelWrapper = new THREE.Group()
-      modelWrapper.add(model)
-      modelWrappers.push(modelWrapper)
-
-      const anchor = mindar.addAnchor(i)
-      anchor.group.add(modelWrapper)
-
-      const m = new THREE.AnimationMixer(model)
-      mixers.push(m)
-      for (const clip of gltf.animations) {
-        m.clipAction(clip as THREE.AnimationClip).play()
-      }
-
-      const audioEl = new Audio()
-      audioEl.src = cacheBust(getAssetUrl(marker.audioPath))
-      audioEl.loop = true
-      audioEl.volume = 0.7
-      audioEl.preload = 'auto'
-      audioEl.setAttribute('playsinline', '')
-      audioEl.setAttribute('webkit-playsinline', '')
-      audioEl.style.display = 'none'
-      document.body.appendChild(audioEl)
-      audioElements.push(audioEl)
-
-      const anchorObj = anchor as unknown as { onTargetFound: () => void; onTargetLost: () => void }
-      anchorObj.onTargetFound = () => {
-        visibleTargets.add(i)
-        audioEl.currentTime = 0
-        audioEl.play().catch((e) => console.error('[AR Audio] play ошибка:', e))
-      }
-      anchorObj.onTargetLost = () => {
-        visibleTargets.delete(i)
-        audioEl.pause()
-      }
-    }
-
-    const manualRotationY = markers.map(() => 0)
-    let lastTouchX = 0
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) lastTouchX = e.touches[0]!.clientX
-    }
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 1 && visibleTargets.size > 0) {
-        const t = e.touches[0]!
-        const dx = t.clientX - lastTouchX
-        const idx = Array.from(visibleTargets)[0] ?? 0
-        manualRotationY[idx] = (manualRotationY[idx] ?? 0) + dx * 0.01
-        lastTouchX = t.clientX
-      }
-    }
-    const handleMouseDown = (e: MouseEvent) => {
-      if (e.button === 0) lastTouchX = e.clientX
-    }
-    const handleMouseMove = (e: MouseEvent) => {
-      if (e.buttons === 1 && visibleTargets.size > 0) {
-        const dx = e.clientX - lastTouchX
-        const idx = Array.from(visibleTargets)[0] ?? 0
-        manualRotationY[idx] = (manualRotationY[idx] ?? 0) + dx * 0.01
-        lastTouchX = e.clientX
-      }
-    }
-    const containerEl = container.value
-    if (containerEl) {
-      containerEl.addEventListener('touchstart', handleTouchStart, { passive: true })
-      containerEl.addEventListener('touchmove', handleTouchMove, { passive: true })
-      containerEl.addEventListener('mousedown', handleMouseDown)
-      containerEl.addEventListener('mousemove', handleMouseMove)
-    }
-
-    const unlockAudio = () => {
-      showSoundHint.value = false
-      document.removeEventListener('click', unlockAudio)
-      document.removeEventListener('touchend', unlockAudio)
-      audioElements.forEach((el) => {
-        if (el.paused) {
-          el.play()
-            .then(() => {
-              el.pause()
-              el.currentTime = 0
-            })
-            .catch((e) => console.error('[AR Audio] unlock play ошибка:', e))
-        }
+    initRotation(ctx.manualRotationY.length)
+    for (let i = 0; i < ctx.manualRotationY.length; i++) {
+      Object.defineProperty(ctx.manualRotationY, i, {
+        get: () => manualRotationY[i] ?? 0,
+        set: (v: number) => {
+          manualRotationY[i] = v
+        },
       })
     }
-    document.addEventListener('click', unlockAudio)
-    document.addEventListener('touchend', unlockAudio)
 
-    await mindar.start()
-
-    let frameSkip = 0
-    let lastTime = performance.now()
-    renderer.setAnimationLoop((time) => {
-      const delta = (time - lastTime) / 1000
-      lastTime = time
-      modelWrappers.forEach((mw, idx) => {
-        mw.rotation.y = manualRotationY[idx] ?? 0
-      })
-      if (visibleTargets.size > 0) {
-        mixers.forEach((m) => m.update(delta))
-        renderer.render(scene, camera)
-      } else {
-        frameSkip++
-        if (frameSkip % 2 === 0) {
-          renderer.render(scene, camera)
-        }
-      }
-    })
+    attachRotation(container.value)
+    attachAudioUnlock()
+    perfStats.start(ctx.renderer, ctx.visibleTargets, ctx.manualRotationY.length)
   } catch (e) {
-    console.error('AR start error:', e)
     started.value = false
     await startCameraOnly(getErrorMessage(e))
-  } finally {
-    loading.value = false
   }
 }
 </script>
@@ -321,7 +175,6 @@ const start = async () => {
   pointer-events: auto;
 }
 
-/* Тёплая палитра: крем, тёмный теал, мягкие тени */
 .start {
   position: absolute;
   inset: 0;
@@ -330,7 +183,11 @@ const start = async () => {
   justify-content: center;
   background: linear-gradient(160deg, #f8f4ee 0%, #ebe6dc 100%);
   color: #2c3539;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
   padding: 1.5rem;
   box-sizing: border-box;
 }
@@ -342,7 +199,9 @@ const start = async () => {
   max-width: 20rem;
   width: 100%;
   text-align: center;
-  box-shadow: 0 8px 32px rgba(44, 53, 57, 0.08), 0 2px 8px rgba(44, 53, 57, 0.04);
+  box-shadow:
+    0 8px 32px rgba(44, 53, 57, 0.08),
+    0 2px 8px rgba(44, 53, 57, 0.04);
 }
 
 .start__logo {
@@ -386,7 +245,9 @@ const start = async () => {
   border: none;
   border-radius: 0.75rem;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
   box-shadow: 0 4px 14px rgba(13, 92, 99, 0.35);
 }
 
@@ -428,7 +289,6 @@ const start = async () => {
   color: #0d5c63;
 }
 
-/* Ошибка */
 .start__card--error {
   border: 1px solid rgba(196, 92, 58, 0.2);
 }
@@ -458,7 +318,6 @@ const start = async () => {
   line-height: 1.5;
 }
 
-/* Загрузка */
 .start__card--loading {
   padding: 2rem;
 }
@@ -480,10 +339,11 @@ const start = async () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* Режим «только камера» — светлый оверлей */
 .ar--camera-only {
   pointer-events: auto;
 }
@@ -530,7 +390,9 @@ const start = async () => {
   border: none;
   border-radius: 0.75rem;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
   box-shadow: 0 4px 14px rgba(13, 92, 99, 0.35);
 }
 
@@ -552,5 +414,70 @@ const start = async () => {
   z-index: 10;
   pointer-events: auto;
   cursor: pointer;
+}
+
+:deep(.camera-fallback-video) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* === Landscape адаптация === */
+.start--landscape .start__card {
+  padding: 1.5rem 2rem;
+  max-width: 28rem;
+  flex-direction: row;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 1.5rem;
+}
+
+.start--landscape .start__logo {
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0;
+}
+
+.start--landscape .start__title {
+  font-size: 1.35rem;
+  margin: 0;
+}
+
+.start--landscape .start__subtitle {
+  flex-basis: 100%;
+  text-align: center;
+  margin: 0;
+}
+
+.start--landscape .start__btn {
+  flex-basis: 100%;
+  padding: 0.65rem 1.25rem;
+}
+
+@media (orientation: landscape) {
+  .sound-hint {
+    bottom: 0.75rem;
+  }
+
+  .camera-only-overlay__card {
+    max-width: 28rem;
+    padding: 1.25rem 1.5rem;
+  }
+}
+
+/* Safe area для устройств с вырезами (notch) */
+@supports (padding: env(safe-area-inset-left)) {
+  .start__admin {
+    right: max(1.25rem, env(safe-area-inset-right));
+    top: max(1.25rem, env(safe-area-inset-top));
+  }
+
+  .sound-hint {
+    bottom: max(2rem, env(safe-area-inset-bottom));
+  }
 }
 </style>

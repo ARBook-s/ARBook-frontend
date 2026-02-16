@@ -1,4 +1,6 @@
 import axiosInstance from '../axios/axiosInstance'
+import { isAxiosError } from 'axios'
+import { throwApiError } from '../utils/handleApiError'
 import type { Marker } from '../types'
 
 class MarkersService {
@@ -13,8 +15,7 @@ class MarkersService {
       })
       return response.data
     } catch (error: unknown) {
-      const data = (error as { response?: { data?: unknown } })?.response?.data
-      throw new Error(String(data ?? 'Ошибка при получении маркеров'))
+      throwApiError(error, 'Ошибка при получении маркеров')
     }
   }
 
@@ -28,29 +29,22 @@ class MarkersService {
       const response = await axiosInstance.get<Marker>(`/api/markers/${id}`)
       return response.data
     } catch (error: unknown) {
-      const status = (error as { response?: { status?: number } })?.response?.status
-      if (status === 404) return null
-      const data = (error as { response?: { data?: unknown } })?.response?.data
-      throw new Error(String(data ?? 'Ошибка при получении маркера'))
+      if (isAxiosError(error) && error.response?.status === 404) return null
+      throwApiError(error, 'Ошибка при получении маркера')
     }
   }
 
   /**
    * Создаёт маркер. POST /api/markers
    * Отправка в формате multipart/form-data. Обязательные поля:
-   * - name — название маркера (строка)
-   * - mind — файл разметки (.mind)
-   * - glb — 3D-модель в формате GLB
-   * - audio — аудиофайл (.mp3, .wav, .ogg, .m4a)
-   * Для mind и glb максимальный размер задаётся в конфигурации бэкенда (по умолчанию 50 МБ).
+   * - name, mind (.mind), glb (.glb), audio (.mp3/.wav/.ogg/.m4a)
    */
   static async createMarker(formData: FormData): Promise<Marker> {
     try {
       const response = await axiosInstance.post<Marker>('/api/markers', formData)
       return response.data
     } catch (error: unknown) {
-      const data = (error as { response?: { data?: unknown } })?.response?.data
-      throw new Error(String(data ?? 'Ошибка при создании маркера'))
+      throwApiError(error, 'Ошибка при создании маркера')
     }
   }
 
@@ -63,8 +57,7 @@ class MarkersService {
       const response = await axiosInstance.patch<Marker>(`/api/markers/${id}`, formData)
       return response.data
     } catch (error: unknown) {
-      const data = (error as { response?: { data?: unknown } })?.response?.data
-      throw new Error(String(data ?? 'Ошибка при обновлении маркера'))
+      throwApiError(error, 'Ошибка при обновлении маркера')
     }
   }
 
@@ -75,8 +68,7 @@ class MarkersService {
     try {
       await axiosInstance.delete(`/api/markers/${id}`)
     } catch (error: unknown) {
-      const data = (error as { response?: { data?: unknown } })?.response?.data
-      throw new Error(String(data ?? 'Ошибка при удалении маркера'))
+      throwApiError(error, 'Ошибка при удалении маркера')
     }
   }
 }
