@@ -2,10 +2,67 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="ARBook — интерактивная AR-книга с дополненной реальностью." />
-    <title>ARBook</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+    <!-- SEO: основные мета-теги -->
+    <title>ARBook — интерактивная AR-книга</title>
+    <meta name="description" content="ARBook — интерактивная книга с дополненной реальностью. Наведите камеру телефона на страницу и оживите иллюстрации с 3D-моделями и звуком." />
+    <meta name="keywords" content="AR, дополненная реальность, AR-книга, ARBook, augmented reality, 3D, интерактивная книга" />
+    <meta name="author" content="ARBook" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph (Facebook, VK, Telegram, etc.) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ARBook — интерактивная AR-книга" />
+    <meta property="og:description" content="Наведите камеру на страницу книги — иллюстрации оживут с 3D-моделями и звуком." />
+    <meta property="og:image" content="/logo.jpg" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="Логотип ARBook" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:site_name" content="ARBook" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="ARBook — интерактивная AR-книга" />
+    <meta name="twitter:description" content="Наведите камеру на страницу книги — иллюстрации оживут с 3D-моделями и звуком." />
+    <meta name="twitter:image" content="/logo.jpg" />
+    <meta name="twitter:image:alt" content="Логотип ARBook" />
+
+    <!-- PWA / Mobile -->
+    <meta name="theme-color" content="#0d5c63" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ARBook" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="ARBook" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Иконки -->
     <link rel="icon" href="/logo.jpg" type="image/jpeg" />
+    <link rel="apple-touch-icon" href="/logo.jpg" />
+
+    <!-- Canonical URL (перезаписывается роутером для каждой страницы) -->
+    <link rel="canonical" href="/" />
+
+    <!-- JSON-LD: структурированные данные -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "ARBook",
+      "description": "Интерактивная книга с дополненной реальностью. Наведите камеру телефона на страницу и оживите иллюстрации с 3D-моделями и звуком.",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Any",
+      "browserRequirements": "Requires camera access, WebGL and WebRTC support",
+      "inLanguage": "ru",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "RUB"
+      }
+    }
+    </script>
   </head>
   <body>
     <div id="app"></div>

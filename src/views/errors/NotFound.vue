@@ -1,11 +1,11 @@
 <template>
-  <div class="error-page">
+  <main class="error-page" role="main">
     <a-result status="404" title="404" sub-title="Страница не найдена">
       <template #extra>
-        <a-button type="primary" @click="goHome">На главную</a-button>
+        <a-button type="primary" @click="goHome" aria-label="Вернуться на главную страницу">На главную</a-button>
       </template>
     </a-result>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">

@@ -30,3 +30,9 @@ export const IDLE_FRAME_SKIP = 3
 
 /** Максимальный FPS (интервал между кадрами = 1000 / TARGET_FPS) */
 export const TARGET_FPS = 30
+
+/** Разрешение камеры (ширина) — меньше = быстрее MindAR */
+export const CAMERA_WIDTH = 640
+
+/** Разрешение камеры (высота) */
+export const CAMERA_HEIGHT = 480

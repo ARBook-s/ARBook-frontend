@@ -16,7 +16,10 @@ import {
   MAX_PIXEL_RATIO_MOBILE,
   IDLE_FRAME_SKIP,
   TARGET_FPS,
+  CAMERA_WIDTH,
+  CAMERA_HEIGHT,
 } from '@/constants/ar'
+import { logger } from '@/utils/logger'
 
 interface ArSceneContext {
   /** Массив для ручного вращения (заполняется useModelRotation) */
@@ -57,6 +60,7 @@ export function useArScene() {
   let mixers: THREE.AnimationMixer[] = []
   let audioElements: HTMLAudioElement[] = []
   let combinedMindBlobUrl: string | null = null
+  let activeDracoLoader: DRACOLoader | undefined
   const visibleTargets = new Set<number>()
 
   /**
@@ -86,6 +90,50 @@ export function useArScene() {
       filterBeta: FILTER_BETA,
     })
 
+    // Патчим _startVideo для ограничения разрешения камеры (640x480)
+    const mindarAny = mindar as unknown as Record<string, unknown>
+    mindarAny._startVideo = function () {
+      return new Promise<void>((resolve, reject) => {
+        const video = document.createElement('video')
+        video.setAttribute('autoplay', '')
+        video.setAttribute('muted', '')
+        video.setAttribute('playsinline', '')
+        video.style.position = 'absolute'
+        video.style.top = '0px'
+        video.style.left = '0px'
+        video.style.zIndex = '-2'
+        ;(mindarAny.container as HTMLDivElement).appendChild(video)
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+          reject(new Error('getUserMedia не поддерживается'))
+          return
+        }
+
+        navigator.mediaDevices
+          .getUserMedia({
+            audio: false,
+            video: {
+              facingMode: 'environment',
+              width: { ideal: CAMERA_WIDTH },
+              height: { ideal: CAMERA_HEIGHT },
+            },
+          })
+          .then((stream) => {
+            video.addEventListener('loadedmetadata', () => {
+              video.setAttribute('width', video.videoWidth.toString())
+              video.setAttribute('height', video.videoHeight.toString())
+              resolve()
+            })
+            video.srcObject = stream
+            mindarAny.video = video
+          })
+          .catch((err) => {
+            logger.error('[useArScene] getUserMedia error', err)
+            reject(err)
+          })
+      })
+    }
+
     const scene = (mindar as unknown as { scene: THREE.Scene }).scene
     const camera = (mindar as unknown as { camera: THREE.PerspectiveCamera }).camera
     renderer = (mindar as unknown as { renderer: THREE.WebGLRenderer }).renderer
@@ -96,41 +144,27 @@ export function useArScene() {
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1))
 
-    const dracoLoader = new DRACOLoader()
-    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/')
+    activeDracoLoader = new DRACOLoader()
+    activeDracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/')
 
-    const loader = new GLTFLoader()
-    loader.setDRACOLoader(dracoLoader)
+    const gltfLoader = new GLTFLoader()
+    gltfLoader.setDRACOLoader(activeDracoLoader)
 
     const modelWrappers: THREE.Group[] = []
     const manualRotationY = markers.map(() => 0)
 
-    // Параллельная загрузка всех GLB-моделей
-    const gltfs = await Promise.all(
-      markers.map((m) => loader.loadAsync(cacheBust(getAssetUrl(m.glbModelPath)))),
-    )
-
-    dracoLoader.dispose()
+    // Состояние ленивой загрузки моделей
+    const modelLoaded: boolean[] = markers.map(() => false)
+    const modelLoading: boolean[] = markers.map(() => false)
 
     for (let i = 0; i < markers.length; i++) {
       const marker = markers[i] as Marker
-      const gltf = gltfs[i]!
-
-      const model = gltf.scene as THREE.Group
-      model.scale.setScalar(BASE_SCALE * marker.scale)
 
       const modelWrapper = new THREE.Group()
-      modelWrapper.add(model)
       modelWrappers.push(modelWrapper)
 
       const anchor = mindar.addAnchor(i)
       anchor.group.add(modelWrapper)
-
-      const mixer = new THREE.AnimationMixer(model)
-      mixers.push(mixer)
-      for (const clip of gltf.animations) {
-        mixer.clipAction(clip as THREE.AnimationClip).play()
-      }
 
       // Аудио: preload metadata — полная загрузка только при обнаружении маркера
       const audioEl = new Audio()
@@ -148,13 +182,41 @@ export function useArScene() {
         onTargetFound: () => void
         onTargetLost: () => void
       }
+
       anchorObj.onTargetFound = () => {
         visibleTargets.add(i)
         audioEl.currentTime = 0
         audioEl.play().catch(() => {
           /* Автовоспроизведение заблокировано — ожидаем жест */
         })
+
+        // Ленивая загрузка модели при первом обнаружении маркера
+        if (!modelLoaded[i] && !modelLoading[i]) {
+          modelLoading[i] = true
+          gltfLoader
+            .loadAsync(cacheBust(getAssetUrl(marker.glbModelPath)))
+            .then((gltf) => {
+              const model = gltf.scene as THREE.Group
+              model.scale.setScalar(BASE_SCALE * marker.scale)
+              modelWrapper.add(model)
+
+              const mixer = new THREE.AnimationMixer(model)
+              mixers.push(mixer)
+              for (const clip of gltf.animations) {
+                mixer.clipAction(clip as THREE.AnimationClip).play()
+              }
+
+              modelLoaded[i] = true
+              modelLoading[i] = false
+              logger.info(`[useArScene] Модель #${i} загружена по требованию`)
+            })
+            .catch((err) => {
+              modelLoading[i] = false
+              logger.error(`[useArScene] Ошибка загрузки модели #${i}:`, err)
+            })
+        }
       }
+
       anchorObj.onTargetLost = () => {
         visibleTargets.delete(i)
         audioEl.pause()
@@ -221,9 +283,23 @@ export function useArScene() {
     audioElements = []
     mixers = []
     visibleTargets.clear()
+
+    if (activeDracoLoader) {
+      activeDracoLoader.dispose()
+      activeDracoLoader = undefined
+    }
+  }
+
+  /** Принудительно обновить размеры рендерера и камеры (при смене ориентации) */
+  function resize() {
+    if (!mindar) return
+    const mindarResize = (mindar as unknown as { resize: () => void }).resize
+    if (typeof mindarResize === 'function') {
+      mindarResize.call(mindar)
+    }
   }
 
   onBeforeUnmount(dispose)
 
-  return { loading, startArScene, dispose }
+  return { loading, startArScene, dispose, resize }
 }

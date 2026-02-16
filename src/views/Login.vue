@@ -1,21 +1,21 @@
 <template>
-  <div class="login">
+  <main class="login" role="main">
     <a-card title="Вход в админ-панель" class="login__card">
-      <a-form :model="form" layout="vertical" @submit.prevent="handleSubmit">
+      <a-form :model="form" layout="vertical" @submit.prevent="handleSubmit" aria-label="Форма авторизации">
         <a-form-item v-if="error" :validate-status="'error'" :help="error" />
         <a-form-item
           label="Имя пользователя"
           name="username"
           :rules="[{ required: true, message: 'Введите имя пользователя' }]"
         >
-          <a-input v-model:value="form.username" type="text" placeholder="username" size="large" />
+          <a-input v-model:value="form.username" type="text" placeholder="username" size="large" autocomplete="username" />
         </a-form-item>
         <a-form-item
           label="Пароль"
           name="password"
           :rules="[{ required: true, message: 'Введите пароль' }]"
         >
-          <a-input-password v-model:value="form.password" placeholder="Пароль" size="large" />
+          <a-input-password v-model:value="form.password" placeholder="Пароль" size="large" autocomplete="current-password" />
         </a-form-item>
         <a-form-item>
           <a-button type="primary" html-type="submit" size="large" block :loading="loading">
@@ -24,7 +24,7 @@
         </a-form-item>
       </a-form>
     </a-card>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">

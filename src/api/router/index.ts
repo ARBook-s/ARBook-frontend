@@ -12,12 +12,15 @@ import NotFound from '@/views/errors/NotFound.vue'
 import Forbidden from '@/views/errors/Forbidden.vue'
 
 const APP_TITLE = 'ARBook'
+const DEFAULT_DESCRIPTION =
+  'ARBook — интерактивная книга с дополненной реальностью. Наведите камеру на страницу и оживите иллюстрации.'
 
 /**
  * Маршруты приложения.
  * meta.title — заголовок вкладки браузера.
- * meta.description — описание страницы (для meta tag).
+ * meta.description — описание страницы (для meta tag и OG).
  * meta.requiresAuth — требуется авторизация.
+ * meta.noIndex — запретить индексацию (для admin, login, ошибок).
  * meta.errorCode — код ошибки (403, 404).
  */
 const routes: RouteRecordRaw[] = [
@@ -37,6 +40,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       title: 'Вход',
       description: 'Вход в админ-панель ARBook.',
+      noIndex: true,
     },
   },
   {
@@ -47,6 +51,7 @@ const routes: RouteRecordRaw[] = [
       title: 'Админ-панель',
       description: 'Управление AR-маркерами и настройками приложения.',
       requiresAuth: true,
+      noIndex: true,
     },
   },
   {
@@ -57,6 +62,7 @@ const routes: RouteRecordRaw[] = [
       title: 'Доступ запрещён',
       description: 'У вас нет прав для просмотра этой страницы.',
       errorCode: 403,
+      noIndex: true,
     },
   },
   {
@@ -67,6 +73,7 @@ const routes: RouteRecordRaw[] = [
       title: 'Страница не найдена',
       description: 'Запрашиваемая страница не существует.',
       errorCode: 404,
+      noIndex: true,
     },
   },
 ]
@@ -76,23 +83,58 @@ const router = createRouter({
   routes,
 })
 
-/** Обновляет document.title и meta description при смене маршрута. */
-function updateDocumentMeta(to: { meta?: { title?: string; description?: string } }) {
-  const title = to.meta?.title
-  document.title = title ? `${title} — ${APP_TITLE}` : APP_TITLE
-
-  const description = to.meta?.description
-  let metaDesc = document.querySelector('meta[name="description"]')
-  if (description) {
-    if (!metaDesc) {
-      metaDesc = document.createElement('meta')
-      metaDesc.setAttribute('name', 'description')
-      document.head.appendChild(metaDesc)
-    }
-    metaDesc.setAttribute('content', description)
-  } else if (metaDesc) {
-    metaDesc.remove()
+/** Устанавливает или обновляет мета-тег. */
+function setMeta(attr: string, key: string, content: string) {
+  let el = document.querySelector(`meta[${attr}="${key}"]`)
+  if (!el) {
+    el = document.createElement('meta')
+    el.setAttribute(attr, key)
+    document.head.appendChild(el)
   }
+  el.setAttribute('content', content)
+}
+
+/** Обновляет document.title, description, OG, canonical и robots при смене маршрута. */
+function updateDocumentMeta(
+  to: {
+    path: string
+    meta?: {
+      title?: string
+      description?: string
+      noIndex?: boolean
+    }
+  },
+) {
+  const title = to.meta?.title
+  const fullTitle = title ? `${title} — ${APP_TITLE}` : APP_TITLE
+  const description = to.meta?.description || DEFAULT_DESCRIPTION
+
+  // Title
+  document.title = fullTitle
+
+  // Standard meta
+  setMeta('name', 'description', description)
+
+  // Open Graph
+  setMeta('property', 'og:title', fullTitle)
+  setMeta('property', 'og:description', description)
+  setMeta('property', 'og:url', window.location.origin + to.path)
+
+  // Twitter Card
+  setMeta('name', 'twitter:title', fullTitle)
+  setMeta('name', 'twitter:description', description)
+
+  // Canonical
+  let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null
+  if (!canonical) {
+    canonical = document.createElement('link')
+    canonical.setAttribute('rel', 'canonical')
+    document.head.appendChild(canonical)
+  }
+  canonical.href = window.location.origin + to.path
+
+  // Robots: noindex для admin/login/ошибок
+  setMeta('name', 'robots', to.meta?.noIndex ? 'noindex, nofollow' : 'index, follow')
 }
 
 router.beforeEach((to) => {

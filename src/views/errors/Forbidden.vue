@@ -1,13 +1,13 @@
 <template>
-  <div class="error-page">
+  <main class="error-page" role="main">
     <a-result status="403" title="403" sub-title="Доступ запрещён">
       <template #extra>
-        <a-button type="primary" @click="goHome">На главную</a-button>
-        <a-button v-if="authStore.isAuthenticated" @click="goAdmin">В админку</a-button>
-        <a-button v-else @click="goLogin">Войти</a-button>
+        <a-button type="primary" @click="goHome" aria-label="Вернуться на главную страницу">На главную</a-button>
+        <a-button v-if="authStore.isAuthenticated" @click="goAdmin" aria-label="Перейти в админ-панель">В админку</a-button>
+        <a-button v-else @click="goLogin" aria-label="Перейти на страницу входа">Войти</a-button>
       </template>
     </a-result>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">

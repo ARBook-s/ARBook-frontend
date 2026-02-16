@@ -1,17 +1,19 @@
 <template>
-  <div v-if="!started && !error" class="start">
-    <div class="start__card">
-      <img :src="logoUrl" alt="ARBook" class="start__logo" width="80" height="80" />
+  <main v-if="!started && !error" class="start" :class="{ 'start--landscape': isLandscape }" role="main">
+    <article class="start__card">
+      <img :src="logoUrl" alt="Логотип ARBook — интерактивная AR-книга" class="start__logo" width="80" height="80" />
       <h1 class="start__title">AR-книга</h1>
       <p class="start__subtitle">Наведите камеру на маркер в книге</p>
-      <button class="start__btn" @click="start" :disabled="arLoading">
+      <button class="start__btn" @click="start" :disabled="arLoading" aria-label="Запустить камеру для AR">
         Запустить камеру
       </button>
-    </div>
-    <router-link to="/admin" class="start__admin">Админ</router-link>
-  </div>
+    </article>
+    <nav class="start__nav" aria-label="Навигация">
+      <router-link to="/admin" class="start__admin">Админ</router-link>
+    </nav>
+  </main>
 
-  <div v-if="error && !cameraOnlyMode" class="start start--error">
+  <section v-if="error && !cameraOnlyMode" class="start start--error" role="alert" aria-live="assertive">
     <div class="start__card start__card--error">
       <div class="start__icon start__icon--error" aria-hidden="true">!</div>
       <h2 class="start__title start__title--small">Что-то пошло не так</h2>
@@ -19,18 +21,19 @@
       <button
         class="start__btn start__btn--secondary"
         @click="error = ''; started = false"
+        aria-label="Попробовать запустить камеру снова"
       >
         Попробовать снова
       </button>
     </div>
-  </div>
+  </section>
 
-  <div v-if="arLoading" class="start start--loading">
+  <section v-if="arLoading" class="start start--loading" role="status" aria-live="polite">
     <div class="start__card start__card--loading">
       <div class="start__spinner" aria-hidden="true"></div>
       <p class="start__loading-text">Загрузка…</p>
     </div>
-  </div>
+  </section>
 
   <!-- Камера при проблемах с сетью -->
   <div
@@ -55,72 +58,16 @@
   </div>
 
   <!-- Performance stats overlay -->
-  <button v-if="started" class="stats-toggle" @click="perfStats.toggle">
-    {{ perfStats.visible.value ? '✕' : 'STATS' }}
-  </button>
-  <div v-if="started && perfStats.visible.value" class="stats-overlay">
-    <div class="stats-row stats-row--highlight">
-      <span>FPS</span>
-      <span :class="fpsClass">{{ perfStats.stats.value.fps }}</span>
-    </div>
-    <div class="stats-row">
-      <span>Frame</span>
-      <span>{{ perfStats.stats.value.frameTime }} ms</span>
-    </div>
-    <div class="stats-divider"></div>
-    <div class="stats-row">
-      <span>GPU</span>
-      <span class="stats-gpu">{{ gpuShort }}</span>
-    </div>
-    <div class="stats-row">
-      <span>Pixel Ratio</span>
-      <span>{{ perfStats.stats.value.pixelRatio.toFixed(1) }}</span>
-    </div>
-    <div class="stats-row">
-      <span>Screen</span>
-      <span>{{ perfStats.stats.value.screenSize }}</span>
-    </div>
-    <div class="stats-row">
-      <span>Canvas</span>
-      <span>{{ perfStats.stats.value.canvasSize }}</span>
-    </div>
-    <div class="stats-divider"></div>
-    <div class="stats-row">
-      <span>Markers</span>
-      <span>{{ perfStats.stats.value.visibleTargets }} / {{ perfStats.stats.value.totalMarkers }}</span>
-    </div>
-    <div class="stats-row">
-      <span>Draw Calls</span>
-      <span>{{ perfStats.stats.value.drawCalls }}</span>
-    </div>
-    <div class="stats-row">
-      <span>Triangles</span>
-      <span>{{ formatNumber(perfStats.stats.value.triangles) }}</span>
-    </div>
-    <div class="stats-row">
-      <span>Textures</span>
-      <span>{{ perfStats.stats.value.textures }}</span>
-    </div>
-    <div class="stats-row">
-      <span>Geometries</span>
-      <span>{{ perfStats.stats.value.geometries }}</span>
-    </div>
-    <template v-if="perfStats.stats.value.memory">
-      <div class="stats-divider"></div>
-      <div class="stats-row">
-        <span>JS Heap</span>
-        <span>{{ formatMB(perfStats.stats.value.memory.usedJSHeapSize) }} / {{ formatMB(perfStats.stats.value.memory.totalJSHeapSize) }}</span>
-      </div>
-      <div class="stats-row">
-        <span>Heap Limit</span>
-        <span>{{ formatMB(perfStats.stats.value.memory.jsHeapSizeLimit) }}</span>
-      </div>
-    </template>
-  </div>
+  <PerformanceStatsPanel
+    v-if="started"
+    :stats="perfStats.stats.value"
+    :visible="perfStats.visible.value"
+    @toggle="perfStats.toggle"
+  />
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, computed } from 'vue'
+import { ref, nextTick, watch } from 'vue'
 import { isAxiosError } from 'axios'
 import logoUrl from '@/assets/logo.jpg'
 import { useArScene } from '@/composables/useArScene'
@@ -128,12 +75,22 @@ import { useCameraFallback } from '@/composables/useCameraFallback'
 import { useModelRotation } from '@/composables/useModelRotation'
 import { useAudioUnlock } from '@/composables/useAudioUnlock'
 import { usePerformanceStats } from '@/composables/usePerformanceStats'
+import { useOrientation } from '@/composables/useOrientation'
+import PerformanceStatsPanel from '@/components/PerformanceStatsPanel.vue'
 
 const container = ref<HTMLDivElement | null>(null)
 const started = ref(false)
 const error = ref('')
 
-const { loading: arLoading, startArScene } = useArScene()
+const { loading: arLoading, startArScene, resize: resizeArScene } = useArScene()
+const { orientation, isLandscape } = useOrientation()
+
+// При смене ориентации — пересчитать размеры MindAR, рендерера и камеры
+watch(orientation, () => {
+  if (started.value) {
+    resizeArScene()
+  }
+})
 const {
   cameraOnlyMode,
   cameraOnlyContainer,
@@ -155,29 +112,6 @@ const { manualRotationY, attach: attachRotation, init: initRotation } = useModel
 )
 
 const perfStats = usePerformanceStats()
-
-const fpsClass = computed(() => {
-  const fps = perfStats.stats.value.fps
-  if (fps >= 50) return 'stats-val--good'
-  if (fps >= 25) return 'stats-val--warn'
-  return 'stats-val--bad'
-})
-
-const gpuShort = computed(() => {
-  const gpu = perfStats.stats.value.gpu
-  if (!gpu || gpu === 'N/A') return 'N/A'
-  return gpu.length > 30 ? gpu.slice(0, 28) + '...' : gpu
-})
-
-function formatMB(bytes: number): string {
-  return (bytes / 1024 / 1024).toFixed(1) + ' MB'
-}
-
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
-  return String(n)
-}
 
 function getErrorMessage(e: unknown): string {
   if (isAxiosError(e) && (e.code === 'ERR_NETWORK' || e.message === 'Network Error')) {
@@ -490,77 +424,60 @@ const start = async () => {
   object-fit: cover;
 }
 
-/* Performance stats */
-.stats-toggle {
-  position: fixed;
-  top: 0.5rem;
-  left: 0.5rem;
-  z-index: 100;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.65rem;
-  font-weight: 700;
-  font-family: monospace;
-  color: #0f0;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(0, 255, 0, 0.3);
-  border-radius: 4px;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.stats-overlay {
-  position: fixed;
-  top: 2.2rem;
-  left: 0.5rem;
-  z-index: 100;
-  min-width: 180px;
-  padding: 0.5rem 0.6rem;
-  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
-  font-size: 0.65rem;
-  line-height: 1.5;
-  color: #ccc;
-  background: rgba(0, 0, 0, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  backdrop-filter: blur(4px);
-  pointer-events: none;
-  user-select: none;
-}
-
-.stats-row {
+/* === Landscape адаптация === */
+.start--landscape .start__card {
+  padding: 1.5rem 2rem;
+  max-width: 28rem;
+  flex-direction: row;
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 1.5rem;
 }
 
-.stats-row--highlight {
-  font-size: 0.8rem;
-  font-weight: 700;
+.start--landscape .start__logo {
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0;
 }
 
-.stats-row span:first-child {
-  color: #888;
+.start--landscape .start__title {
+  font-size: 1.35rem;
+  margin: 0;
 }
 
-.stats-row span:last-child {
-  color: #eee;
-  text-align: right;
+.start--landscape .start__subtitle {
+  flex-basis: 100%;
+  text-align: center;
+  margin: 0;
 }
 
-.stats-divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 0.25rem 0;
+.start--landscape .start__btn {
+  flex-basis: 100%;
+  padding: 0.65rem 1.25rem;
 }
 
-.stats-gpu {
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+@media (orientation: landscape) {
+  .sound-hint {
+    bottom: 0.75rem;
+  }
+
+  .camera-only-overlay__card {
+    max-width: 28rem;
+    padding: 1.25rem 1.5rem;
+  }
 }
 
-.stats-val--good { color: #4f4 !important; }
-.stats-val--warn { color: #fc0 !important; }
-.stats-val--bad { color: #f44 !important; }
+/* Safe area для устройств с вырезами (notch) */
+@supports (padding: env(safe-area-inset-left)) {
+  .start__admin {
+    right: max(1.25rem, env(safe-area-inset-right));
+    top: max(1.25rem, env(safe-area-inset-top));
+  }
+
+  .sound-hint {
+    bottom: max(2rem, env(safe-area-inset-bottom));
+  }
+}
 </style>
