@@ -1,8 +1,13 @@
 <template>
-  <button class="stats-toggle" @click="toggle">
+  <button
+    class="stats-toggle"
+    @click="toggle"
+    :aria-label="visible ? 'Скрыть статистику производительности' : 'Показать статистику производительности'"
+    :aria-expanded="visible"
+  >
     {{ visible ? '\u2715' : 'STATS' }}
   </button>
-  <div v-if="visible" class="stats-overlay">
+  <div v-if="visible" class="stats-overlay" role="region" aria-label="Статистика производительности">
     <div class="stats-row stats-row--highlight">
       <span>FPS</span>
       <span :class="fpsClass">{{ stats.fps }}</span>

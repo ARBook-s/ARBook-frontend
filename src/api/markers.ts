@@ -1,13 +1,16 @@
 import MarkersService from './services/markersService'
 import type { Marker } from '@/api/types'
+import type { AxiosRequestConfig } from 'axios'
 
 export { getAssetUrl } from './utils/baseUrl'
 
 export const markersApi = {
   getAll: () => MarkersService.getAllMarkers(),
   getById: (id: number) => MarkersService.getMarkerById(id),
-  create: (formData: FormData) => MarkersService.createMarker(formData),
-  update: (id: number, formData: FormData) => MarkersService.updateMarker(id, formData),
+  create: (formData: FormData, config?: AxiosRequestConfig) =>
+    MarkersService.createMarker(formData, config),
+  update: (id: number, formData: FormData, config?: AxiosRequestConfig) =>
+    MarkersService.updateMarker(id, formData, config),
   delete: (id: number) => MarkersService.deleteMarker(id),
 }
 

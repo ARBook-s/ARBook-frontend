@@ -20,6 +20,8 @@ export function useModelPreview() {
   let previewRenderer: THREE.WebGLRenderer | null = null
   let previewControls: InstanceType<typeof OrbitControls> | null = null
   let previewAnimationId: number | null = null
+  let previewMixer: THREE.AnimationMixer | null = null
+  let previewClock: THREE.Clock | null = null
 
   function openPreviewModal(record: Marker) {
     previewingMarker.value = record
@@ -60,6 +62,15 @@ export function useModelPreview() {
       const model = gltf.scene as THREE.Group
       model.scale.setScalar(BASE_SCALE * (marker.scale ?? 1))
       scene.add(model)
+
+      if (gltf.animations.length > 0) {
+        previewMixer = new THREE.AnimationMixer(model)
+        for (const clip of gltf.animations) {
+          previewMixer.clipAction(clip as THREE.AnimationClip).play()
+        }
+        previewClock = new THREE.Clock()
+      }
+
       dracoLoader.dispose()
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Ошибка загрузки 3D-модели')
@@ -67,6 +78,9 @@ export function useModelPreview() {
 
     const animate = () => {
       previewAnimationId = requestAnimationFrame(animate)
+      if (previewMixer && previewClock) {
+        previewMixer.update(previewClock.getDelta())
+      }
       controls.update()
       renderer.render(scene, camera)
     }
@@ -81,6 +95,9 @@ export function useModelPreview() {
       cancelAnimationFrame(previewAnimationId)
       previewAnimationId = null
     }
+    previewMixer?.stopAllAction()
+    previewMixer = null
+    previewClock = null
     previewControls?.dispose()
     previewControls = null
     if (previewRenderer) {

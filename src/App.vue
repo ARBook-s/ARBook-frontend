@@ -1,7 +1,11 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import ErrorBoundary from '@/components/ErrorBoundary.vue'
+</script>
 
 <template>
-  <router-view />
+  <ErrorBoundary>
+    <router-view />
+  </ErrorBoundary>
   <noscript>
     <p style="text-align: center; padding: 2rem; font-family: sans-serif;">
       Для работы ARBook необходим JavaScript. Пожалуйста, включите его в настройках браузера.
