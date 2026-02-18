@@ -1,5 +1,6 @@
 import axiosInstance from '../axios/axiosInstance'
 import { isAxiosError } from 'axios'
+import type { AxiosRequestConfig } from 'axios'
 import { throwApiError } from '../utils/handleApiError'
 import type { Marker } from '../types'
 
@@ -39,9 +40,9 @@ class MarkersService {
    * Отправка в формате multipart/form-data. Обязательные поля:
    * - name, mind (.mind), glb (.glb), audio (.mp3/.wav/.ogg/.m4a)
    */
-  static async createMarker(formData: FormData): Promise<Marker> {
+  static async createMarker(formData: FormData, config?: AxiosRequestConfig): Promise<Marker> {
     try {
-      const response = await axiosInstance.post<Marker>('/api/markers', formData)
+      const response = await axiosInstance.post<Marker>('/api/markers', formData, config)
       return response.data
     } catch (error: unknown) {
       throwApiError(error, 'Ошибка при создании маркера')
@@ -52,9 +53,13 @@ class MarkersService {
    * Обновляет маркер. PATCH /api/markers/:id
    * Отправка multipart/form-data. Можно передать только изменённые поля.
    */
-  static async updateMarker(id: number, formData: FormData): Promise<Marker> {
+  static async updateMarker(
+    id: number,
+    formData: FormData,
+    config?: AxiosRequestConfig,
+  ): Promise<Marker> {
     try {
-      const response = await axiosInstance.patch<Marker>(`/api/markers/${id}`, formData)
+      const response = await axiosInstance.patch<Marker>(`/api/markers/${id}`, formData, config)
       return response.data
     } catch (error: unknown) {
       throwApiError(error, 'Ошибка при обновлении маркера')

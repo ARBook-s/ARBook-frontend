@@ -3,11 +3,13 @@ import Antd from 'ant-design-vue'
 import App from './App.vue'
 import { pinia } from './api/store'
 import { useAuthStore } from './api/store/auth'
+import { validateEnv } from './utils/validateEnv'
 import 'ant-design-vue/dist/reset.css'
 import './style.css'
 import router from './api/router'
 
-// vConsole — мобильная консоль для отладки (логи видны на экране телефона)
+validateEnv()
+
 if (import.meta.env.DEV || new URLSearchParams(location.search).has('vconsole')) {
   import('vconsole').then(({ default: VConsole }) => {
     new VConsole()

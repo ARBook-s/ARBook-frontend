@@ -281,6 +281,7 @@ export function useArScene() {
       el.remove()
     })
     audioElements = []
+    mixers.forEach((m) => m.stopAllAction())
     mixers = []
     visibleTargets.clear()
 

@@ -44,7 +44,11 @@
     <div class="camera-only-overlay">
       <div class="camera-only-overlay__card">
         <p class="camera-only-overlay__text">{{ cameraErrorMessage }}</p>
-        <button class="camera-only-overlay__btn" @click="handleStopCameraOnly">
+        <button
+          class="camera-only-overlay__btn"
+          @click="handleStopCameraOnly"
+          aria-label="Попробовать подключить камеру снова"
+        >
           Попробовать снова
         </button>
       </div>
@@ -53,9 +57,15 @@
 
   <div ref="container" class="ar" :class="{ 'ar--active': started }"></div>
 
-  <div v-if="started && showSoundHint" class="sound-hint" @click="hideSoundHint">
+  <button
+    v-if="started && showSoundHint"
+    class="sound-hint"
+    @click="hideSoundHint"
+    role="status"
+    aria-label="Нажмите для включения звука"
+  >
     Нажмите для включения звука
-  </div>
+  </button>
 
   <!-- Performance stats overlay -->
   <PerformanceStatsPanel

@@ -7,10 +7,20 @@
     :destroy-on-close="true"
   >
     <div v-if="previewingMarker" class="preview-modal">
-      <div class="preview-modal__canvas" ref="previewCanvasRef"></div>
+      <div
+        class="preview-modal__canvas"
+        ref="previewCanvasRef"
+        role="img"
+        aria-label="3D-модель маркера"
+      ></div>
       <div v-if="previewingMarker.audioPath" class="preview-modal__audio">
-        <span class="preview-modal__label">Аудио:</span>
-        <audio :src="getAssetUrl(previewingMarker.audioPath)" controls preload="metadata" />
+        <span class="preview-modal__label" id="preview-audio-label">Аудио:</span>
+        <audio
+          :src="getAssetUrl(previewingMarker.audioPath)"
+          controls
+          preload="metadata"
+          aria-labelledby="preview-audio-label"
+        />
       </div>
       <div v-else class="preview-modal__no-audio">Аудио не загружено</div>
     </div>
@@ -23,6 +33,8 @@ import { useModelPreview } from '@/composables/useModelPreview'
 
 const { previewModalVisible, previewingMarker, previewCanvasRef, openPreviewModal } =
   useModelPreview()
+
+void previewCanvasRef
 
 defineExpose({ openPreviewModal })
 </script>

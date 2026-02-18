@@ -2,10 +2,10 @@
   <a-layout class="admin-layout">
     <a-layout-header class="admin-header">
       <span class="admin-header__title">ARBook — Админ</span>
-      <div class="admin-header__actions">
-        <a-button type="link" @click="goToAr">AR-книга</a-button>
-        <a-button type="primary" ghost @click="handleLogout"> Выйти </a-button>
-      </div>
+      <nav class="admin-header__actions" aria-label="Действия администратора">
+        <a-button type="link" @click="goToAr" aria-label="Перейти к AR-книге">AR-книга</a-button>
+        <a-button type="primary" ghost @click="handleLogout" aria-label="Выйти из системы"> Выйти </a-button>
+      </nav>
     </a-layout-header>
 
     <a-layout-content class="admin-content">
