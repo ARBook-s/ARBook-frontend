@@ -8,6 +8,11 @@ const AdminView = () => import('@/views/AdminView.vue')
 
 // Лёгкие страницы — в основном бандле
 import Login from '@/views/Login.vue'
+import HelpView from '@/views/HelpView.vue'
+import HelpIndex from '@/views/help/HelpIndex.vue'
+import HelpUsage from '@/views/help/HelpUsage.vue'
+import HelpInstall from '@/views/help/HelpInstall.vue'
+import HelpFaq from '@/views/help/HelpFaq.vue'
 import NotFound from '@/views/errors/NotFound.vue'
 import Forbidden from '@/views/errors/Forbidden.vue'
 
@@ -32,6 +37,48 @@ const routes: RouteRecordRaw[] = [
       title: 'AR-книга',
       description: 'Интерактивная AR-книга с дополненной реальностью. Наведите камеру на маркер.',
     },
+  },
+  {
+    path: '/help',
+    component: HelpView,
+    children: [
+      {
+        path: '',
+        name: 'help',
+        component: HelpIndex,
+        meta: {
+          title: 'Как пользоваться',
+          description: 'Инструкция по использованию AR-книги и установке приложения на телефон.',
+        },
+      },
+      {
+        path: 'usage',
+        name: 'help-usage',
+        component: HelpUsage,
+        meta: {
+          title: 'Как работает AR-книга',
+          description: 'Пошаговая инструкция по использованию AR-книги.',
+        },
+      },
+      {
+        path: 'install',
+        name: 'help-install',
+        component: HelpInstall,
+        meta: {
+          title: 'Установка на телефон',
+          description: 'Как добавить ARBook на домашний экран телефона.',
+        },
+      },
+      {
+        path: 'faq',
+        name: 'help-faq',
+        component: HelpFaq,
+        meta: {
+          title: 'Частые вопросы',
+          description: 'Ответы на частые вопросы по работе AR-книги.',
+        },
+      },
+    ],
   },
   {
     path: '/login',

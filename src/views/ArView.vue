@@ -9,7 +9,8 @@
       </button>
     </article>
     <nav class="start__nav" aria-label="Навигация">
-      <router-link to="/admin" class="start__admin">Админ</router-link>
+      <router-link to="/help" class="start__nav-link">Как пользоваться</router-link>
+      <router-link to="/admin" class="start__nav-link start__nav-link--muted">Админ</router-link>
     </nav>
   </main>
 
@@ -285,18 +286,34 @@ const start = async () => {
   box-shadow: 0 4px 12px rgba(44, 53, 57, 0.12);
 }
 
-.start__admin {
+.start__nav {
   position: absolute;
   top: 1.25rem;
   right: 1.25rem;
-  color: #7d8a90;
-  font-size: 0.9rem;
-  text-decoration: none;
-  transition: color 0.15s ease;
+  display: flex;
+  gap: 1rem;
 }
 
-.start__admin:hover {
+.start__nav-link {
   color: #0d5c63;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.start__nav-link:hover {
+  opacity: 0.7;
+}
+
+.start__nav-link--muted {
+  color: #7d8a90;
+  font-weight: 400;
+}
+
+.start__nav-link--muted:hover {
+  color: #0d5c63;
+  opacity: 1;
 }
 
 .start__card--error {
@@ -481,7 +498,7 @@ const start = async () => {
 
 /* Safe area для устройств с вырезами (notch) */
 @supports (padding: env(safe-area-inset-left)) {
-  .start__admin {
+  .start__nav {
     right: max(1.25rem, env(safe-area-inset-right));
     top: max(1.25rem, env(safe-area-inset-top));
   }
