@@ -19,10 +19,12 @@ function htmlRawPlugin() {
   }
 }
 
+const isDev = process.env.NODE_ENV !== 'production'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    basicSsl(),
+    ...(isDev ? [basicSsl()] : []),
     commonjs({
       filter(id) {
         if (!id.includes('node_modules') || id.includes('.vue')) return false
@@ -111,8 +113,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true, // слушать на 0.0.0.0 — доступ с телефона в той же Wi‑Fi сети
-    // HTTPS включается плагином basicSsl — нужен для камеры на телефоне (getUserMedia)
+    host: isDev,
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
