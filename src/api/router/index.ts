@@ -5,6 +5,8 @@ import { useAuthStore } from '@/api/store/auth'
 // Lazy-loaded: Three.js + MindAR + TensorFlow грузятся только при переходе на AR
 const ArView = () => import('@/views/ArView.vue')
 const AdminView = () => import('@/views/AdminView.vue')
+const AdminMarkersView = () => import('@/views/admin/AdminMarkersView.vue')
+const AdminStatsView = () => import('@/views/admin/AdminStatsView.vue')
 
 // Лёгкие страницы — в основном бандле
 import Login from '@/views/Login.vue'
@@ -92,7 +94,6 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin',
-    name: 'Admin',
     component: AdminView,
     meta: {
       title: 'Админ-панель',
@@ -100,6 +101,34 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       noIndex: true,
     },
+    children: [
+      {
+        path: '',
+        redirect: { name: 'AdminMarkers' },
+      },
+      {
+        path: 'markers',
+        name: 'AdminMarkers',
+        component: AdminMarkersView,
+        meta: {
+          title: 'Маркеры',
+          description: 'Управление AR-маркерами.',
+          requiresAuth: true,
+          noIndex: true,
+        },
+      },
+      {
+        path: 'stats',
+        name: 'AdminStats',
+        component: AdminStatsView,
+        meta: {
+          title: 'Статистика запросов',
+          description: 'Статистика запросов к API.',
+          requiresAuth: true,
+          noIndex: true,
+        },
+      },
+    ],
   },
   {
     path: '/403',
