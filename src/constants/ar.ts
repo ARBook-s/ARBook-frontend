@@ -36,3 +36,12 @@ export const CAMERA_WIDTH = 640
 
 /** Разрешение камеры (высота) */
 export const CAMERA_HEIGHT = 480
+
+/** Сколько маркеров трекать одновременно (1 = книга, одна страница за раз) */
+export const MAX_TRACK = 1
+
+/** Сколько кадров подряд нужно «увидеть» маркер, чтобы подтвердить обнаружение */
+export const WARMUP_TOLERANCE = 3
+
+/** Сколько кадров «потери» маркера допустимо перед вызовом onTargetLost */
+export const MISS_TOLERANCE = 5
