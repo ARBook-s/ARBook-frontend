@@ -18,7 +18,6 @@ import {
   TARGET_FPS,
   CAMERA_WIDTH,
   CAMERA_HEIGHT,
-  MAX_TRACK,
   WARMUP_TOLERANCE,
   MISS_TOLERANCE,
 } from '@/constants/ar'
@@ -83,7 +82,7 @@ export function useArScene() {
     mindar = new MindARThree({
       container: containerEl,
       imageTargetSrc: combinedMindUrl,
-      maxTrack: MAX_TRACK,
+      maxTrack: markers.length,
       warmupTolerance: WARMUP_TOLERANCE,
       missTolerance: MISS_TOLERANCE,
       uiLoading: 'no',
