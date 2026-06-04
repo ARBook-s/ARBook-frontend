@@ -9,7 +9,7 @@ class StatisticsService {
    */
   static async getStatistics(pageNumber: number, pageSize: number): Promise<StatisticsPage> {
     try {
-      const response = await axiosInstance.get<StatisticsPage>('/api/statistics', {
+      const response = await axiosInstance.get<StatisticsPage>('statistics', {
         params: {
           pageNumber,
           pageSize,

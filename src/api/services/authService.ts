@@ -15,7 +15,7 @@ class AuthService {
    */
   static async loginAdmin(username: string, password: string): Promise<void> {
     try {
-      const response = await axiosInstance.post<AuthResponse | string>('/api/auth/login', {
+      const response = await axiosInstance.post<AuthResponse | string>('auth/login', {
         username,
         password,
       })
@@ -39,7 +39,7 @@ class AuthService {
    */
   static async logOut(): Promise<void> {
     try {
-      await axiosInstance.post('/api/auth/logout')
+      await axiosInstance.post('/auth/logout')
     } catch (error: unknown) {
       throwApiError(error, 'Ошибка при выходе')
     } finally {

@@ -5,7 +5,7 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 import 'mind-ar-ts/src/image-target/index'
 import MindARThree from 'mind-ar-ts/src/image-target/three'
 import { getMarkers, getAssetUrl } from '@/api/markers'
-import { getApiBaseUrl } from '@/api/utils/baseUrl'
+import { getApiUrl } from '@/api/utils/baseUrl'
 import type { Marker } from '@/api/types'
 import {
   BASE_SCALE,
@@ -77,7 +77,7 @@ export function useArScene() {
       return null
     }
 
-    const combinedMindUrl = cacheBust(`${getApiBaseUrl()}/api/markers/combined-mind`)
+    const combinedMindUrl = cacheBust(getApiUrl('markers/combined-mind'))
 
     mindar = new MindARThree({
       container: containerEl,

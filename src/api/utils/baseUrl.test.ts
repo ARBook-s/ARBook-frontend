@@ -34,11 +34,11 @@ describe('baseUrl utilities', () => {
   })
 
   describe('getApiBaseUrl', () => {
-    it('returns empty string when env is not set', async () => {
+    it('returns /api when env is not set', async () => {
       vi.stubEnv('VITE_API_BASE_URL', '')
       vi.resetModules()
       const { getApiBaseUrl } = await import('./baseUrl')
-      expect(getApiBaseUrl()).toBe('')
+      expect(getApiBaseUrl()).toBe('/api')
     })
   })
 })
