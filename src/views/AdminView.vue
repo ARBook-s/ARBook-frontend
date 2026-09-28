@@ -4,108 +4,60 @@
       <span class="admin-header__title">ARBook — Админ</span>
       <nav class="admin-header__actions" aria-label="Действия администратора">
         <a-button type="link" @click="goToAr" aria-label="Перейти к AR-книге">AR-книга</a-button>
-        <a-button type="primary" ghost @click="handleLogout" aria-label="Выйти из системы"> Выйти </a-button>
+        <a-button type="primary" ghost @click="handleLogout" aria-label="Выйти из системы">
+          Выйти
+        </a-button>
       </nav>
     </a-layout-header>
 
-    <a-layout-content class="admin-content">
-      <a-card title="Маркеры" class="admin-card">
-        <template #extra>
-          <a-button type="primary" @click="formModalRef?.openCreate()"> Добавить маркер </a-button>
-        </template>
+    <a-layout class="admin-layout__inner">
+      <a-layout-sider
+        class="admin-sider"
+        width="220"
+        breakpoint="lg"
+        collapsed-width="0"
+        theme="dark"
+      >
+        <div class="admin-sider__title" aria-hidden="true">Навигация</div>
+        <a-menu
+          class="admin-menu"
+          mode="inline"
+          theme="dark"
+          :selectedKeys="[activeMenuKey]"
+          @click="onMenuClick"
+          aria-label="Разделы админ-панели"
+        >
+          <a-menu-item key="markers"> Маркеры </a-menu-item>
+          <a-menu-item key="stats"> Статистика запросов </a-menu-item>
+        </a-menu>
+      </a-layout-sider>
 
-        <a-spin :spinning="loading">
-          <a-empty v-if="!loading && markers.length === 0" description="Нет маркеров" />
-          <a-table
-            v-else
-            :columns="columns"
-            :data-source="markers"
-            :pagination="{ pageSize: 10 }"
-            row-key="id"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'name'">
-                {{ record.name }}
-              </template>
-              <template v-else-if="column.key === 'scale'">
-                {{ record.scale ?? 1 }}
-              </template>
-              <template v-else-if="column.key === 'actions'">
-                <a-space>
-                  <a-button
-                    type="link"
-                    size="small"
-                    @click="previewModalRef?.openPreviewModal(record)"
-                  >
-                    Предпросмотр
-                  </a-button>
-                  <a-button type="link" size="small" @click="formModalRef?.openEdit(record)">
-                    Редактировать
-                  </a-button>
-                  <a-popconfirm
-                    title="Удалить маркер?"
-                    ok-text="Да"
-                    cancel-text="Нет"
-                    @confirm="handleDelete(record.id)"
-                  >
-                    <a-button type="link" danger size="small">Удалить</a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-          </a-table>
-        </a-spin>
-      </a-card>
-    </a-layout-content>
-
-    <MarkerFormModal ref="formModalRef" @saved="loadMarkers" />
-    <ModelPreviewModal ref="previewModalRef" />
+      <a-layout-content class="admin-content">
+        <router-view />
+      </a-layout-content>
+    </a-layout>
   </a-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/api/store/auth'
-import { markersApi } from '@/api/markers'
-import type { Marker } from '@/api/types'
-import MarkerFormModal from '@/components/MarkerFormModal.vue'
-import ModelPreviewModal from '@/components/ModelPreviewModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
-const loading = ref(false)
-const markers = ref<Marker[]>([])
 
-const formModalRef = ref<InstanceType<typeof MarkerFormModal>>()
-const previewModalRef = ref<InstanceType<typeof ModelPreviewModal>>()
+const activeMenuKey = computed<'markers' | 'stats'>(() => {
+  if (route.name === 'AdminStats') return 'stats'
+  return 'markers'
+})
 
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 80 },
-  { title: 'Название', dataIndex: 'name', key: 'name' },
-  { title: 'Масштаб', dataIndex: 'scale', key: 'scale', width: 100 },
-  { title: 'Действия', key: 'actions', width: 240 },
-]
-
-async function loadMarkers() {
-  loading.value = true
-  try {
-    markers.value = await markersApi.getAll()
-  } catch (e) {
-    message.error(e instanceof Error ? e.message : 'Ошибка загрузки маркеров')
-  } finally {
-    loading.value = false
-  }
-}
-
-async function handleDelete(id: number) {
-  try {
-    await markersApi.delete(id)
-    message.success('Маркер удалён')
-    await loadMarkers()
-  } catch (e) {
-    message.error(e instanceof Error ? e.message : 'Ошибка удаления')
+function onMenuClick({ key }: { key: 'markers' | 'stats' }) {
+  if (key === 'markers') {
+    void router.push({ name: 'AdminMarkers' })
+  } else {
+    void router.push({ name: 'AdminStats' })
   }
 }
 
@@ -118,15 +70,14 @@ const handleLogout = async () => {
   }
   await router.replace('/login')
 }
-
-onMounted(async () => {
-  await loadMarkers()
-})
 </script>
 
 <style scoped>
 .admin-layout {
   min-height: 100vh;
+}
+.admin-layout__inner {
+  min-height: calc(100vh - 64px);
 }
 .admin-header {
   display: flex;
@@ -154,5 +105,37 @@ onMounted(async () => {
 .admin-content {
   padding: 24px;
   background: #f0f2f5;
+}
+
+.admin-sider {
+  background: #001529;
+}
+
+.admin-sider__title {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.admin-menu {
+  border-inline-end: none;
+}
+
+.admin-card {
+  height: 100%;
+}
+
+.ua {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.action {
+  font-size: 13px;
 }
 </style>

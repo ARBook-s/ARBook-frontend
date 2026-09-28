@@ -3,7 +3,6 @@ import { SESSION_FLAG } from '../authConstants'
 import { getApiBaseUrl } from '../utils/baseUrl'
 
 export const axiosInstance = axios.create({
-  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -14,6 +13,7 @@ export const axiosInstance = axios.create({
 // ——— Request interceptor ———
 axiosInstance.interceptors.request.use(
   (config) => {
+    config.baseURL = getApiBaseUrl()
     const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null
     // SESSION_FLAG = auth через cookies, не отправляем Bearer
     if (token && token !== SESSION_FLAG) {

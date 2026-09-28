@@ -5,7 +5,7 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 import 'mind-ar-ts/src/image-target/index'
 import MindARThree from 'mind-ar-ts/src/image-target/three'
 import { getMarkers, getAssetUrl } from '@/api/markers'
-import { mergeMindFiles } from '@/utils/mergeMindFiles'
+import { getApiUrl } from '@/api/utils/baseUrl'
 import type { Marker } from '@/api/types'
 import {
   BASE_SCALE,
@@ -18,6 +18,8 @@ import {
   TARGET_FPS,
   CAMERA_WIDTH,
   CAMERA_HEIGHT,
+  WARMUP_TOLERANCE,
+  MISS_TOLERANCE,
 } from '@/constants/ar'
 import { logger } from '@/utils/logger'
 
@@ -59,7 +61,6 @@ export function useArScene() {
   let renderer: THREE.WebGLRenderer | undefined
   let mixers: THREE.AnimationMixer[] = []
   let audioElements: HTMLAudioElement[] = []
-  let combinedMindBlobUrl: string | null = null
   let activeDracoLoader: DRACOLoader | undefined
   const visibleTargets = new Set<number>()
 
@@ -76,19 +77,20 @@ export function useArScene() {
       return null
     }
 
-    const mindUrls = markers.map((m) => cacheBust(getAssetUrl(m.mindFilePath)))
-    combinedMindBlobUrl = await mergeMindFiles(mindUrls)
+    const combinedMindUrl = cacheBust(getApiUrl('markers/combined-mind'))
 
     mindar = new MindARThree({
       container: containerEl,
-      imageTargetSrc: combinedMindBlobUrl,
+      imageTargetSrc: combinedMindUrl,
       maxTrack: markers.length,
+      warmupTolerance: WARMUP_TOLERANCE,
+      missTolerance: MISS_TOLERANCE,
       uiLoading: 'no',
       uiScanning: 'no',
       uiError: 'no',
       filterMinCF: FILTER_MIN_CF,
       filterBeta: FILTER_BETA,
-    })
+    } as ConstructorParameters<typeof MindARThree>[0])
 
     // Патчим _startVideo для ограничения разрешения камеры (640x480)
     const mindarAny = mindar as unknown as Record<string, unknown>
@@ -270,11 +272,6 @@ export function useArScene() {
 
     renderer?.dispose()
     renderer = undefined
-
-    if (combinedMindBlobUrl) {
-      URL.revokeObjectURL(combinedMindBlobUrl)
-      combinedMindBlobUrl = null
-    }
 
     audioElements.forEach((el) => {
       el.pause()

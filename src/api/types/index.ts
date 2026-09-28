@@ -23,3 +23,18 @@ export interface ApiErrorData {
   error?: string
   title?: string
 }
+
+export interface StatisticsItem {
+  id: number
+  createdAt: string
+  ip: string
+  userAgent: string
+  action: string
+}
+
+export interface StatisticsPage {
+  items: StatisticsItem[]
+  totalCount: number
+  pageNumber: number
+  pageSize: number
+}
